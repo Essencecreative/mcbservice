@@ -1,20 +1,20 @@
-const express = require("express")
-const multer = require("multer")
-const { v2: cloudinary } = require("cloudinary")
-const Opportunity = require("../models/Opportunity")
+const express = require("express");
+const multer = require("multer");
+const { v2: cloudinary } = require("cloudinary");
+const Opportunity = require("../models/Opportunity");
 
-const router = express.Router()
+const router = express.Router();
 
 // Multer setup
-const storage = multer.memoryStorage()
-const upload = multer({ storage })
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 // Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
-})
+});
 
 // Helper: cloudinary uploader with stream
 const streamUpload = (fileBuffer) => {
@@ -25,22 +25,22 @@ const streamUpload = (fileBuffer) => {
         folder: "opportunities",
       },
       (error, result) => {
-        if (result) resolve(result)
-        else reject(error)
+        if (result) resolve(result);
+        else reject(error);
       }
-    )
-    stream.end(fileBuffer)
-  })
-}
+    );
+    stream.end(fileBuffer);
+  });
+};
 
 // POST /opportunities
 router.post("/", upload.single("document"), async (req, res) => {
   try {
-    let documentUrl = ""
+    let documentUrl = "";
 
     if (req.file) {
-      const result = await streamUpload(req.file.buffer)
-      documentUrl = result.secure_url
+      const result = await streamUpload(req.file.buffer);
+      documentUrl = result.secure_url;
     }
 
     const opportunity = new Opportunity({
@@ -48,24 +48,72 @@ router.post("/", upload.single("document"), async (req, res) => {
       description: req.body.description,
       category: req.body.category,
       documentUrl,
-    })
+    });
 
-    const saved = await opportunity.save()
-    res.status(201).json(saved)
+    const saved = await opportunity.save();
+    res.status(201).json(saved);
   } catch (error) {
-    console.error("Upload error:", error)
-    res.status(500).json({ error: "Failed to create opportunity" })
+    console.error("Upload error:", error);
+    res.status(500).json({ error: "Failed to create opportunity" });
   }
-})
+});
 
 // GET /opportunities
 router.get("/", async (req, res) => {
   try {
-    const opportunities = await Opportunity.find().sort({ createdAt: -1 })
-    res.json(opportunities)
+    const opportunities = await Opportunity.find().sort({ createdAt: -1 });
+    res.json(opportunities);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch opportunities" })
+    res.status(500).json({ error: "Failed to fetch opportunities" });
   }
-})
+});
 
-module.exports = router
+// PUT /opportunities/:id
+router.put("/:id", upload.single("document"), async (req, res) => {
+  try {
+    let documentUrl = req.body.existingDocumentUrl || "";
+
+    if (req.file) {
+      const result = await streamUpload(req.file.buffer);
+      documentUrl = result.secure_url;
+    }
+
+    const updated = await Opportunity.findByIdAndUpdate(
+      req.params.id,
+      {
+        title: req.body.title,
+        description: req.body.description,
+        category: req.body.category,
+        documentUrl,
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ error: "Failed to update opportunity" });
+  }
+});
+
+// DELETE /opportunities/:id
+router.delete("/:id", async (req, res) => {
+  try {
+    const deleted = await Opportunity.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+
+    res.json({ message: "Opportunity deleted successfully" });
+  } catch (error) {
+    console.error("Delete error:", error);
+    res.status(500).json({ error: "Failed to delete opportunity" });
+  }
+});
+
+module.exports = router;

@@ -11,6 +11,7 @@ const userRoutes = require('./routes/user'); // 👈 import user routes
 const teamRoutes = require('./routes/team'); // 👈 import user routes
 const newsRoutes = require('./routes/news'); // 👈 import user routes
 const opportunityRoutes = require('./routes/opportunities'); // 👈 import user routes
+const statsRoutes = require('./routes/statistics'); // 👈 import user routes
 const User = require('./models/user'); // 👈 import User model
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/publications', publicationRoutes);
 app.use('/users', userRoutes);
 app.use('/team', teamRoutes);
 app.use('/news', newsRoutes);
+app.use('/stats', statsRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {

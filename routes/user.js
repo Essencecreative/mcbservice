@@ -97,6 +97,41 @@ router.post(
   }
 );
 
+// Route: Delete team member (only admin with username "admin" can delete)
+router.delete(
+    "/delete-team-member/:id",
+    authenticateToken,  // This will authenticate and add user details to req.user
+    async (req, res) => {
+      try {
+        // Check if the authenticated user is an admin and username is "admin"
+        if (req.user.role !== "admin" || req.user.username !== "admin") {
+          return res.status(403).json({ message: "Unauthorized: Only super admin can delete users" });
+        }
+  
+        const { id } = req.params;
+  
+        // Find the user to delete by ID
+        const userToDelete = await User.findById(id);
+        if (!userToDelete) {
+          return res.status(404).json({ message: "User not found" });
+        }
+  
+        // Prevent deleting the super admin account itself
+        if (userToDelete.username === "admin") {
+          return res.status(400).json({ message: "Cannot delete the super admin account" });
+        }
+  
+        // Proceed with deletion
+        await User.findByIdAndDelete(id);
+  
+        res.status(200).json({ message: "Team member deleted successfully" });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to delete team member", error: error.message });
+      }
+    }
+  );
+  
 
 
 router.post('/login', async (req, res) => {
@@ -121,6 +156,7 @@ router.post('/login', async (req, res) => {
           id: user._id,
           username: user.username,
           role: user.role,
+          photo: user?.photo
         },
         process.env.JWT_SECRET || 'supersecretkey', // Use env var in production
         { expiresIn: '1d' } // expires in 1 day
@@ -133,6 +169,7 @@ router.post('/login', async (req, res) => {
           id: user._id,
           username: user.username,
           role: user.role,
+          photo: user?.photo
         },
       });
     } catch (error) {
@@ -142,12 +179,64 @@ router.post('/login', async (req, res) => {
 
 // Route to get all users (for admin use)
 router.get('/', authenticateToken, async (req, res) => {
-  try {
-    const users = await User.find();
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching users', error: error.message });
-  }
-});
+    try {
+      const users = await User.find({ username: { $ne: "admin" } });
+      res.status(200).json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching users', error: error.message });
+    }
+  });
+  
+
+router.get('/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = await User.findById(id);
+  
+      if (!user) {
+        return res.status(404).json({ message: 'users not found' });
+      }
+  
+      res.status(200).json(user);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  });
+
+  router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, password } = req.body;
+  
+      const user = await User.findById(id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+  
+      // Check for username uniqueness (if it's being changed)
+      if (username && username !== user.username) {
+        const existing = await User.findOne({ username });
+        if (existing) {
+          return res.status(400).json({ message: "Username already in use" });
+        }
+        user.username = username;
+      }
+  
+      if (password) {
+        user.password = password; // assume User model hashes password in a pre-save hook
+      }
+  
+      if (req.file) {
+        const uploadResult = await streamUpload(req.file.buffer);
+        user.photo = uploadResult.secure_url;
+      }
+  
+      await user.save();
+  
+      res.status(200).json({ message: "User updated successfully", user });
+    } catch (error) {
+      console.error("Update user error:", error);
+      res.status(500).json({ message: "Failed to update user", error: error.message });
+    }
+  });
 
 module.exports = router;
