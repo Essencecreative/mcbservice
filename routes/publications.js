@@ -2,13 +2,56 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Publication = require('../models/Publication');
 const authenticateToken = require('../middlewares/authMiddleware');
+const multer = require('multer');
+const { v2: cloudinary } = require('cloudinary');
 
 const router = express.Router();
 
-// Create a new publication
-router.post('/', authenticateToken, async (req, res) => {
+// Multer memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Upload helper
+const streamUpload = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        folder: 'publications',
+      },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    stream.end(fileBuffer);
+  });
+};
+
+// Create a new publication with optional photo
+router.post('/', authenticateToken, upload.single("photo"), async (req, res) => {
   try {
-    const { title, category, description, newsAndEvents, publicationDate, contentDescription } = req.body;
+    const {
+      title,
+      category,
+      description,
+      newsAndEvents,
+      publicationDate,
+      contentDescription,
+    } = req.body;
+
+    let photoUrl = "";
+    if (req.file) {
+      const uploadResult = await streamUpload(req.file.buffer);
+      photoUrl = uploadResult.secure_url;
+    }
 
     const newPublication = new Publication({
       title,
@@ -17,11 +60,15 @@ router.post('/', authenticateToken, async (req, res) => {
       newsAndEvents,
       publicationDate: new Date(publicationDate),
       contentDescription,
+      photo: photoUrl,
     });
 
     await newPublication.save();
 
-    res.status(200).json({ message: 'Publication created successfully', publication: newPublication });
+    res.status(200).json({
+      message: 'Publication created successfully',
+      publication: newPublication,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to create publication' });
@@ -29,7 +76,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Fetch publications (with pagination and filtering)
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const {
       page = 1,
@@ -66,8 +113,8 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Update an existing publication
-router.put('/:id', authenticateToken, async (req, res) => {
+// Update an existing publication (including new photo)
+router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -79,24 +126,30 @@ router.put('/:id', authenticateToken, async (req, res) => {
       contentDescription,
     } = req.body;
 
-    const updatedPublication = await Publication.findByIdAndUpdate(
-      id,
-      {
-        title,
-        category,
-        description,
-        newsAndEvents,
-        publicationDate: new Date(publicationDate),
-        contentDescription,
-      },
-      { new: true } // Return the updated document
-    );
+    const updateData = {
+      title,
+      category,
+      description,
+      newsAndEvents,
+      publicationDate: new Date(publicationDate),
+      contentDescription,
+    };
+
+    if (req.file) {
+      const uploadResult = await streamUpload(req.file.buffer);
+      updateData.photo = uploadResult.secure_url;
+    }
+
+    const updatedPublication = await Publication.findByIdAndUpdate(id, updateData, { new: true });
 
     if (!updatedPublication) {
       return res.status(404).json({ message: 'Publication not found' });
     }
 
-    res.status(200).json({ message: 'Publication updated successfully', publication: updatedPublication });
+    res.status(200).json({
+      message: 'Publication updated successfully',
+      publication: updatedPublication,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to update publication' });
@@ -123,20 +176,19 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
 // Get a single publication by ID
 router.get('/:id', authenticateToken, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const publication = await Publication.findById(id);
-  
-      if (!publication) {
-        return res.status(404).json({ message: 'Publication not found' });
-      }
-  
-      res.status(200).json(publication);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Failed to fetch publication' });
+  try {
+    const { id } = req.params;
+    const publication = await Publication.findById(id);
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
     }
-  });
-  
+
+    res.status(200).json(publication);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch publication' });
+  }
+});
 
 module.exports = router;

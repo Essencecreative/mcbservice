@@ -2,13 +2,50 @@ const express = require('express');
 const mongoose = require('mongoose');
 const News = require('../models/news');
 const authenticateToken = require('../middlewares/authMiddleware');
+const multer = require('multer');
+const { v2: cloudinary } = require('cloudinary');
 
 const router = express.Router();
 
+// Multer memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Upload helper
+const streamUpload = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        folder: 'publications',
+      },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    stream.end(fileBuffer);
+  });
+};
+
+
 // POST /news - Create news/update
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken,  upload.single("photo"), async (req, res) => {
   try {
     const { title, category, description, publicationDate, contentDescription } = req.body;
+
+    let photoUrl = "";
+    if (req.file) {
+      const uploadResult = await streamUpload(req.file.buffer);
+      photoUrl = uploadResult.secure_url;
+    }
 
     const newNews = new News({
       title,
@@ -16,6 +53,7 @@ router.post('/', authenticateToken, async (req, res) => {
       description,
       publicationDate: publicationDate ? new Date(publicationDate) : undefined,
       contentDescription,
+      photo: photoUrl,
     });
 
     await newNews.save();
@@ -58,21 +96,25 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /news/:id - Update news/update
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
   try {
+    const { id } = req.params;
     const { title, category, description, publicationDate, contentDescription } = req.body;
 
-    const updatedNews = await News.findByIdAndUpdate(
-      req.params.id,
-      {
-        title,
-        category,
-        description,
-        publicationDate: publicationDate ? new Date(publicationDate) : undefined,
-        contentDescription,
-      },
-      { new: true }
-    );
+    const updateData = {
+      title,
+      category,
+      description,
+      publicationDate: new Date(publicationDate),
+      contentDescription,
+    };
+
+    if (req.file) {
+      const uploadResult = await streamUpload(req.file.buffer);
+      updateData.photo = uploadResult.secure_url;
+    }
+
+    const updatedNews = await News.findByIdAndUpdate(id, updateData, { new: true });
 
     if (!updatedNews) {
       return res.status(404).json({ message: 'News/Update not found' });

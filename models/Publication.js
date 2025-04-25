@@ -22,6 +22,7 @@ const PublicationSchema = new mongoose.Schema({
     type: Date,
     required: false, // It's optional in this case, as per your code
   },
+  photo: { type: String }
 }, {
   timestamps: true, // Automatically add createdAt and updatedAt fields
 });
