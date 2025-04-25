@@ -122,7 +122,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
       const { id } = req.params;
       const team = await Team.findById(id);

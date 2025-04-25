@@ -87,7 +87,9 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const query = {};
-    if (category) {
+
+    // Only add category filter if category is specified and not 'all'
+    if (category && category.toLowerCase() !== 'all') {
       query.category = category;
     }
 
@@ -112,6 +114,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch publications' });
   }
 });
+
 
 // Update an existing publication (including new photo)
 router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
@@ -175,7 +178,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // Get a single publication by ID
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const publication = await Publication.findById(id);

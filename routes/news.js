@@ -66,12 +66,22 @@ router.post('/', authenticateToken,  upload.single("photo"), async (req, res) =>
 });
 
 // GET /news - Fetch paginated news/updates
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, category, sortBy = 'publicationDate', sortOrder = 'desc' } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      category,
+      sortBy = 'publicationDate',
+      sortOrder = 'desc'
+    } = req.query;
 
     const query = {};
-    if (category) query.category = category;
+
+    // Only filter by category if it's provided and not 'all'
+    if (category && category.toLowerCase() !== 'all') {
+      query.category = category;
+    }
 
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
@@ -94,6 +104,7 @@ router.get('/', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch news/updates' });
   }
 });
+
 
 // PUT /news/:id - Update news/update
 router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
@@ -143,7 +154,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
       const { id } = req.params;
       const New = await News.findById(id);

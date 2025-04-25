@@ -61,12 +61,22 @@ router.post("/", upload.single("document"), async (req, res) => {
 // GET /opportunities
 router.get("/", async (req, res) => {
   try {
-    const opportunities = await Opportunity.find().sort({ createdAt: -1 });
+    const { category } = req.query;
+
+    const query = {};
+    if (category && category.toLowerCase() !== "all") {
+      query.category = category;
+    }
+
+    const opportunities = await Opportunity.find(query).sort({ createdAt: -1 });
+
     res.json(opportunities);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Failed to fetch opportunities" });
   }
 });
+
 
 // PUT /opportunities/:id
 router.put("/:id", upload.single("document"), async (req, res) => {
