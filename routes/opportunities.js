@@ -1,6 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const { v2: cloudinary } = require("cloudinary");
+const path = require("path");
 const Opportunity = require("../models/Opportunity");
 
 const router = express.Router();
@@ -17,12 +18,16 @@ cloudinary.config({
 });
 
 // Helper: cloudinary uploader with stream
-const streamUpload = (fileBuffer) => {
+const streamUpload = (fileBuffer, originalName) => {
   return new Promise((resolve, reject) => {
+    const fileExtension = path.extname(originalName);
+    const fileName = path.basename(originalName, fileExtension); // Get the file name without extension
+
     const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: "raw",
         folder: "opportunities",
+        public_id: `${fileName}${fileExtension}`, // Set the public ID with the file extension
       },
       (error, result) => {
         if (result) resolve(result);
@@ -39,7 +44,7 @@ router.post("/", upload.single("document"), async (req, res) => {
     let documentUrl = "";
 
     if (req.file) {
-      const result = await streamUpload(req.file.buffer);
+      const result = await streamUpload(req.file.buffer, req.file.originalname);
       documentUrl = result.secure_url;
     }
 
@@ -77,14 +82,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 // PUT /opportunities/:id
 router.put("/:id", upload.single("document"), async (req, res) => {
   try {
     let documentUrl = req.body.existingDocumentUrl || "";
 
     if (req.file) {
-      const result = await streamUpload(req.file.buffer);
+      const result = await streamUpload(req.file.buffer, req.file.originalname);
       documentUrl = result.secure_url;
     }
 
