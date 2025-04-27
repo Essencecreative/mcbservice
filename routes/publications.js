@@ -2,15 +2,19 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Publication = require('../models/Publication');
 const authenticateToken = require('../middlewares/authMiddleware');
-const multer = require('multer');
+const multerLib = require('multer');
 const { v2: cloudinary } = require('cloudinary');
 const path = require('path');
 
 const router = express.Router();
 
 // Multer memory storage
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const storage = multerLib.memoryStorage();
+const multer = multerLib({ storage }); // instantiate multer
+const upload = multer.fields([
+  { name: 'photo', maxCount: 1 },
+  { name: 'document', maxCount: 1 },
+]);
 
 // Cloudinary config
 cloudinary.config({
@@ -20,16 +24,16 @@ cloudinary.config({
 });
 
 // Upload helper with filename and extension
-const streamUpload = (fileBuffer, originalName) => {
+const streamUpload = (fileBuffer, originalName, resourceType = 'image') => {
   return new Promise((resolve, reject) => {
     const fileExtension = path.extname(originalName);
     const fileName = path.basename(originalName, fileExtension);
 
     const stream = cloudinary.uploader.upload_stream(
       {
-        resource_type: 'image',
+        resource_type: resourceType,
         folder: 'publications',
-        public_id: `${fileName}${fileExtension}`, // include extension in public_id
+        public_id: `${fileName}-${Date.now()}`, // make it unique with timestamp
       },
       (error, result) => {
         if (result) resolve(result);
@@ -40,8 +44,8 @@ const streamUpload = (fileBuffer, originalName) => {
   });
 };
 
-// Create a new publication with optional photo
-router.post('/', authenticateToken, upload.single("photo"), async (req, res) => {
+// Create a new publication with optional photo and document
+router.post('/', authenticateToken, upload, async (req, res) => {
   try {
     const {
       title,
@@ -53,9 +57,16 @@ router.post('/', authenticateToken, upload.single("photo"), async (req, res) => 
     } = req.body;
 
     let photoUrl = "";
-    if (req.file) {
-      const uploadResult = await streamUpload(req.file.buffer, req.file.originalname);
+    let documentUrl = "";
+
+    if (req.files['photo'] && req.files['photo'][0]) {
+      const uploadResult = await streamUpload(req.files['photo'][0].buffer, req.files['photo'][0].originalname, 'image');
       photoUrl = uploadResult.secure_url;
+    }
+
+    if (req.files['document'] && req.files['document'][0]) {
+      const uploadResult = await streamUpload(req.files['document'][0].buffer, req.files['document'][0].originalname, 'raw');
+      documentUrl = uploadResult.secure_url;
     }
 
     const newPublication = new Publication({
@@ -65,7 +76,8 @@ router.post('/', authenticateToken, upload.single("photo"), async (req, res) => 
       newsAndEvents,
       publicationDate: new Date(publicationDate),
       contentDescription,
-      documentUrl: photoUrl,
+      photo: photoUrl,
+      documentUrl: documentUrl,
     });
 
     await newPublication.save();
@@ -93,7 +105,6 @@ router.get('/', async (req, res) => {
 
     const query = {};
 
-    // Only add category filter if category is specified and not 'all'
     if (category && category.toLowerCase() !== 'all') {
       query.category = category;
     }
@@ -120,8 +131,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Update an existing publication (including new photo)
-router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
+// Update an existing publication (including photo and document)
+router.put('/:id', authenticateToken, upload, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -142,8 +153,13 @@ router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) =
       contentDescription,
     };
 
-    if (req.file) {
-      const uploadResult = await streamUpload(req.file.buffer, req.file.originalname);
+    if (req.files['photo'] && req.files['photo'][0]) {
+      const uploadResult = await streamUpload(req.files['photo'][0].buffer, req.files['photo'][0].originalname, 'image');
+      updateData.photo = uploadResult.secure_url;
+    }
+
+    if (req.files['document'] && req.files['document'][0]) {
+      const uploadResult = await streamUpload(req.files['document'][0].buffer, req.files['document'][0].originalname, 'raw');
       updateData.documentUrl = uploadResult.secure_url;
     }
 
