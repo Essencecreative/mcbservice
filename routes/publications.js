@@ -4,6 +4,7 @@ const Publication = require('../models/Publication');
 const authenticateToken = require('../middlewares/authMiddleware');
 const multer = require('multer');
 const { v2: cloudinary } = require('cloudinary');
+const path = require('path');
 
 const router = express.Router();
 
@@ -18,13 +19,17 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Upload helper
-const streamUpload = (fileBuffer) => {
+// Upload helper with filename and extension
+const streamUpload = (fileBuffer, originalName) => {
   return new Promise((resolve, reject) => {
+    const fileExtension = path.extname(originalName);
+    const fileName = path.basename(originalName, fileExtension);
+
     const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'image',
         folder: 'publications',
+        public_id: `${fileName}${fileExtension}`, // include extension in public_id
       },
       (error, result) => {
         if (result) resolve(result);
@@ -49,7 +54,7 @@ router.post('/', authenticateToken, upload.single("photo"), async (req, res) => 
 
     let photoUrl = "";
     if (req.file) {
-      const uploadResult = await streamUpload(req.file.buffer);
+      const uploadResult = await streamUpload(req.file.buffer, req.file.originalname);
       photoUrl = uploadResult.secure_url;
     }
 
@@ -60,7 +65,7 @@ router.post('/', authenticateToken, upload.single("photo"), async (req, res) => 
       newsAndEvents,
       publicationDate: new Date(publicationDate),
       contentDescription,
-      photo: photoUrl,
+      documentUrl: photoUrl,
     });
 
     await newPublication.save();
@@ -115,7 +120,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-
 // Update an existing publication (including new photo)
 router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) => {
   try {
@@ -139,8 +143,8 @@ router.put('/:id', authenticateToken, upload.single("photo"), async (req, res) =
     };
 
     if (req.file) {
-      const uploadResult = await streamUpload(req.file.buffer);
-      updateData.photo = uploadResult.secure_url;
+      const uploadResult = await streamUpload(req.file.buffer, req.file.originalname);
+      updateData.documentUrl = uploadResult.secure_url;
     }
 
     const updatedPublication = await Publication.findByIdAndUpdate(id, updateData, { new: true });
