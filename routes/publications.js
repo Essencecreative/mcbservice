@@ -23,24 +23,24 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Upload helper with filename and extension
-const streamUpload = (fileBuffer, originalName, resourceType = 'image') => {
+// Upload helper with filename and extension for document upload
+const streamUpload = (fileBuffer, originalName, resourceType = 'raw') => {
   return new Promise((resolve, reject) => {
-    const fileExtension = path.extname(originalName);
-    const fileName = path.basename(originalName, fileExtension);
+    const fileExtension = path.extname(originalName); // Get the file extension
+    const fileName = path.basename(originalName, fileExtension); // Get the file name without extension
 
     const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: resourceType,
-        folder: 'publications',
-        public_id: `${fileName}-${Date.now()}`, // make it unique with timestamp
+        folder: 'opportunities',
+        public_id: `${fileName}${fileExtension}`, // Use the file extension in the public_id
       },
       (error, result) => {
         if (result) resolve(result);
         else reject(error);
       }
     );
-    stream.end(fileBuffer);
+    stream.end(fileBuffer); // End the stream with the file buffer
   });
 };
 
