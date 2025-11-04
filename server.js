@@ -12,7 +12,9 @@ const teamRoutes = require('./routes/team'); // 👈 import user routes
 const newsRoutes = require('./routes/news'); // 👈 import user routes
 const opportunityRoutes = require('./routes/opportunities'); // 👈 import user routes
 const statsRoutes = require('./routes/statistics'); // 👈 import user routes
+const galleryRoutes = require('./routes/gallery'); // 👈 import user routes
 const User = require('./models/user'); // 👈 import User model
+
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -28,6 +30,7 @@ app.use('/users', userRoutes);
 app.use('/team', teamRoutes);
 app.use('/news', newsRoutes);
 app.use('/stats', statsRoutes);
+app.use('/gallery', galleryRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
