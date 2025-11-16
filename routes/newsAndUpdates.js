@@ -1,4 +1,3 @@
-// routes/newsAndUpdates.js
 const express = require('express');
 const mongoose = require('mongoose');
 const NewsAndUpdate = require('../models/NewsAndUpdate');
@@ -9,76 +8,78 @@ const fs = require('fs').promises;
 
 const router = express.Router();
 
-// Multer disk storage for local uploads
+/* -------------------------------
+   Multer Storage for image uploads
+--------------------------------*/
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '..', 'uploads', 'news-and-updates');
-    fs.mkdir(uploadPath, { recursive: true })
-      .then(() => cb(null, uploadPath))
-      .catch(err => cb(err));
+  destination: async (req, file, cb) => {
+    try {
+      const uploadPath = path.join(__dirname, '..', 'uploads', 'news-and-updates');
+      await fs.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
   }
 });
 
 const upload = multer({ storage });
 
-// POST /news-and-updates - Create news and update
+/* -------------------------------
+   Helper: Build public image URL
+--------------------------------*/
+const buildImageUrl = (req, filename) => {
+  return `${req.protocol}://${req.get('host')}/uploads/news-and-updates/${filename}`;
+};
+
+/* -------------------------------
+   POST /news-and-updates - Create
+--------------------------------*/
 router.post('/', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { title, shortDescription, content } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ message: 'Image is required' });
-    }
+    if (!req.file) return res.status(400).json({ message: 'Image is required' });
 
-    const newNewsAndUpdate = new NewsAndUpdate({
+    const newNews = new NewsAndUpdate({
       title,
       shortDescription,
       content,
-      image: req.file.path
+      image: buildImageUrl(req, req.file.filename)
     });
 
-    await newNewsAndUpdate.save();
+    await newNews.save();
 
-    res.status(201).json({ 
-      message: 'News & Update created successfully', 
-      newsAndUpdate: newNewsAndUpdate 
-    });
+    res.status(201).json({ message: 'News & Update created successfully', newsAndUpdate: newNews });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to create news & update' });
   }
 });
 
-// GET /news-and-updates - Fetch paginated news and updates
+/* -------------------------------
+   GET /news-and-updates - List with pagination
+--------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
-    const query = {};
-
-    const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
-    const newsAndUpdates = await NewsAndUpdate.find(query)
+    const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+    const newsList = await NewsAndUpdate.find()
       .sort(sortOptions)
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
-    const totalCount = await NewsAndUpdate.countDocuments(query);
+    const totalCount = await NewsAndUpdate.countDocuments();
 
     res.status(200).json({
-      newsAndUpdates,
+      newsAndUpdates: newsList,
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
-      currentPage: Number(page),
+      currentPage: Number(page)
     });
   } catch (error) {
     console.error(error);
@@ -86,80 +87,73 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /news-and-updates/:id - Fetch single news and update
+/* -------------------------------
+   GET /news-and-updates/:id - Single
+--------------------------------*/
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid ID' });
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid news & update ID' });
-    }
+    const news = await NewsAndUpdate.findById(id);
+    if (!news) return res.status(404).json({ message: 'News & Update not found' });
 
-    const newsAndUpdate = await NewsAndUpdate.findById(id);
-
-    if (!newsAndUpdate) {
-      return res.status(404).json({ message: 'News & Update not found' });
-    }
-
-    res.status(200).json(newsAndUpdate);
+    res.status(200).json(news);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to fetch news & update' });
   }
 });
 
-// PUT /news-and-updates/:id - Update news and update
+/* -------------------------------
+   PUT /news-and-updates/:id - Update
+--------------------------------*/
 router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid ID' });
+
+    const news = await NewsAndUpdate.findById(id);
+    if (!news) return res.status(404).json({ message: 'News & Update not found' });
+
     const { title, shortDescription, content } = req.body;
-
-    const newsAndUpdate = await NewsAndUpdate.findById(id);
-    if (!newsAndUpdate) {
-      return res.status(404).json({ message: 'News & Update not found' });
-    }
-
-    const updateData = {
-      title,
-      shortDescription,
-      content
-    };
+    const updateData = { title, shortDescription, content };
 
     if (req.file) {
-      // Delete old image if it exists
-      if (newsAndUpdate.image) {
-        await fs.unlink(newsAndUpdate.image).catch(console.error);
+      // Delete old image if exists
+      if (news.image) {
+        const oldPath = path.join(__dirname, '..', news.image.replace(`${req.protocol}://${req.get('host')}/`, ''));
+        await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.image = req.file.path;
+      updateData.image = buildImageUrl(req, req.file.filename);
     }
 
-    const updatedNewsAndUpdate = await NewsAndUpdate.findByIdAndUpdate(id, updateData, { new: true });
-
-    res.status(200).json({ 
-      message: 'News & Update updated successfully', 
-      newsAndUpdate: updatedNewsAndUpdate 
-    });
+    const updatedNews = await NewsAndUpdate.findByIdAndUpdate(id, updateData, { new: true });
+    res.status(200).json({ message: 'News & Update updated successfully', newsAndUpdate: updatedNews });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to update news & update' });
   }
 });
 
-// DELETE /news-and-updates/:id - Delete news and update
+/* -------------------------------
+   DELETE /news-and-updates/:id
+--------------------------------*/
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const newsAndUpdate = await NewsAndUpdate.findById(req.params.id);
-    if (!newsAndUpdate) {
-      return res.status(404).json({ message: 'News & Update not found' });
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid ID' });
+
+    const news = await NewsAndUpdate.findById(id);
+    if (!news) return res.status(404).json({ message: 'News & Update not found' });
+
+    // Delete image if exists
+    if (news.image) {
+      const oldPath = path.join(__dirname, '..', news.image.replace(`${req.protocol}://${req.get('host')}/`, ''));
+      await fs.unlink(oldPath).catch(() => {});
     }
 
-    // Delete image file if it exists
-    if (newsAndUpdate.image) {
-      await fs.unlink(newsAndUpdate.image).catch(console.error);
-    }
-
-    await NewsAndUpdate.findByIdAndDelete(req.params.id);
-
+    await NewsAndUpdate.findByIdAndDelete(id);
     res.status(200).json({ message: 'News & Update deleted successfully' });
   } catch (error) {
     console.error(error);
@@ -168,4 +162,3 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-

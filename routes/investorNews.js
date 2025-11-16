@@ -9,22 +9,36 @@ const fs = require('fs').promises;
 
 const router = express.Router();
 
-// Multer disk storage for local uploads
+/* -------------------------------
+   Multer Storage for images
+--------------------------------*/
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '..', 'uploads', 'investor-news');
-    fs.mkdir(uploadPath, { recursive: true })
-      .then(() => cb(null, uploadPath))
-      .catch(err => cb(err));
+  destination: async (req, file, cb) => {
+    try {
+      const uploadPath = path.join(__dirname, '..', 'uploads', 'investor-news');
+      await fs.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
   }
 });
 
 const upload = multer({ storage });
 
-// POST /investor-news - Create investor news
+/* -------------------------------
+   Helper: Build public image URL
+--------------------------------*/
+const buildImageUrl = (req, filename) => {
+  return `${req.protocol}://${req.get('host')}/uploads/investor-news/${filename}`;
+};
+
+/* -------------------------------
+   POST /investor-news - Create
+--------------------------------*/
 router.post('/', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { title, shortDescription, content } = req.body;
@@ -33,18 +47,20 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
       return res.status(400).json({ message: 'Image is required' });
     }
 
+    const imageUrl = buildImageUrl(req, req.file.filename);
+
     const newInvestorNews = new InvestorNews({
       title,
       shortDescription,
       content,
-      image: req.file.path
+      image: imageUrl
     });
 
     await newInvestorNews.save();
 
-    res.status(201).json({ 
-      message: 'Investor news created successfully', 
-      investorNews: newInvestorNews 
+    res.status(201).json({
+      message: 'Investor news created successfully',
+      investorNews: newInvestorNews
     });
   } catch (error) {
     console.error(error);
@@ -52,33 +68,28 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
   }
 });
 
-// GET /investor-news - Fetch paginated investor news
+/* -------------------------------
+   GET /investor-news - List (paginated)
+--------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const sortBy = req.query.sortBy || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
 
-    const query = {};
+    const totalCount = await InvestorNews.countDocuments();
 
-    const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
-    const investorNews = await InvestorNews.find(query)
-      .sort(sortOptions)
+    const investorNews = await InvestorNews.find()
+      .sort({ [sortBy]: sortOrder })
       .skip((page - 1) * limit)
-      .limit(Number(limit));
-
-    const totalCount = await InvestorNews.countDocuments(query);
+      .limit(limit);
 
     res.status(200).json({
       investorNews,
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
-      currentPage: Number(page),
+      currentPage: page
     });
   } catch (error) {
     console.error(error);
@@ -86,20 +97,19 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /investor-news/:id - Fetch single investor news
+/* -------------------------------
+   GET /investor-news/:id - Single
+--------------------------------*/
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid investor news ID' });
     }
 
     const investorNews = await InvestorNews.findById(id);
-
-    if (!investorNews) {
-      return res.status(404).json({ message: 'Investor news not found' });
-    }
+    if (!investorNews) return res.status(404).json({ message: 'Investor news not found' });
 
     res.status(200).json(investorNews);
   } catch (error) {
@@ -108,36 +118,37 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /investor-news/:id - Update investor news
+/* -------------------------------
+   PUT /investor-news/:id - Update
+--------------------------------*/
 router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { id } = req.params;
     const { title, shortDescription, content } = req.body;
 
-    const investorNews = await InvestorNews.findById(id);
-    if (!investorNews) {
-      return res.status(404).json({ message: 'Investor news not found' });
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid investor news ID' });
     }
 
-    const updateData = {
-      title,
-      shortDescription,
-      content
-    };
+    const investorNews = await InvestorNews.findById(id);
+    if (!investorNews) return res.status(404).json({ message: 'Investor news not found' });
+
+    const updateData = { title, shortDescription, content };
 
     if (req.file) {
       // Delete old image if it exists
-      if (investorNews.image) {
-        await fs.unlink(investorNews.image).catch(console.error);
+      if (investorNews.image && !investorNews.image.startsWith('http')) {
+        const oldPath = path.join(__dirname, '..', 'uploads', 'investor-news', path.basename(investorNews.image));
+        await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.image = req.file.path;
+      updateData.image = buildImageUrl(req, req.file.filename);
     }
 
     const updatedInvestorNews = await InvestorNews.findByIdAndUpdate(id, updateData, { new: true });
 
-    res.status(200).json({ 
-      message: 'Investor news updated successfully', 
-      investorNews: updatedInvestorNews 
+    res.status(200).json({
+      message: 'Investor news updated successfully',
+      investorNews: updatedInvestorNews
     });
   } catch (error) {
     console.error(error);
@@ -145,20 +156,23 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
   }
 });
 
-// DELETE /investor-news/:id - Delete investor news
+/* -------------------------------
+   DELETE /investor-news/:id
+--------------------------------*/
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const investorNews = await InvestorNews.findById(req.params.id);
-    if (!investorNews) {
-      return res.status(404).json({ message: 'Investor news not found' });
+    const { id } = req.params;
+
+    const investorNews = await InvestorNews.findById(id);
+    if (!investorNews) return res.status(404).json({ message: 'Investor news not found' });
+
+    // Delete old image if exists
+    if (investorNews.image && !investorNews.image.startsWith('http')) {
+      const oldPath = path.join(__dirname, '..', 'uploads', 'investor-news', path.basename(investorNews.image));
+      await fs.unlink(oldPath).catch(() => {});
     }
 
-    // Delete image file if it exists
-    if (investorNews.image) {
-      await fs.unlink(investorNews.image).catch(console.error);
-    }
-
-    await InvestorNews.findByIdAndDelete(req.params.id);
+    await InvestorNews.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'Investor news deleted successfully' });
   } catch (error) {
@@ -168,4 +182,3 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-

@@ -24,6 +24,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Helper: build full URL for uploaded file
+const buildFileUrl = (req, filename) => {
+  return `${req.protocol}://${req.get("host")}/uploads/products/${path.basename(filename)}`;
+};
+
 // POST /products - Create product
 router.post('/', authenticateToken, upload.single('image'), async (req, res) => {
   try {
@@ -47,7 +52,7 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
       buttonText,
       buttonLink,
       features: parsedFeatures,
-      image: req.file.path
+      image: buildFileUrl(req, req.file.path)
     });
 
     await newProduct.save();
@@ -70,7 +75,6 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const query = {};
-
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
@@ -93,11 +97,41 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /products/:id - Fetch single product
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.status(200).json(product);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch product' });
+  }
+});
+
 // PUT /products/:id - Update product
 router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, buttonText, buttonLink, features } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
 
     const updateData = {
       title,
@@ -107,22 +141,20 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
     };
 
     if (features) {
-      updateData.features = JSON.parse(features);
-      if (updateData.features.length > 5) {
+      const parsedFeatures = JSON.parse(features);
+      if (parsedFeatures.length > 5) {
         return res.status(400).json({ message: 'Maximum 5 features allowed' });
       }
-    }
-
-    const product = await Product.findById(id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+      updateData.features = parsedFeatures;
     }
 
     if (req.file) {
+      // Delete old image file
       if (product.image) {
-        await fs.unlink(product.image).catch(console.error);
+        const oldImagePath = path.join(__dirname, '..', 'uploads', 'products', path.basename(product.image));
+        await fs.unlink(oldImagePath).catch(console.error);
       }
-      updateData.image = req.file.path;
+      updateData.image = buildFileUrl(req, req.file.path);
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(id, updateData, { new: true });
@@ -137,38 +169,29 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
 // DELETE /products/:id - Delete product
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
+    const product = await Product.findById(id);
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    // Delete image file
     if (product.image) {
-      await fs.unlink(product.image).catch(console.error);
+      const imagePath = path.join(__dirname, '..', 'uploads', 'products', path.basename(product.image));
+      await fs.unlink(imagePath).catch(console.error);
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    await Product.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'Product deleted successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to delete product' });
-  }
-});
-
-// GET /products/:id - Fetch single product
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const product = await Product.findById(id);
-
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    res.status(200).json(product);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch product' });
   }
 });
 

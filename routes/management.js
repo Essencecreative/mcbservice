@@ -1,3 +1,4 @@
+// routes/management.js
 const express = require('express');
 const mongoose = require('mongoose');
 const Management = require('../models/Management');
@@ -8,39 +9,55 @@ const fs = require('fs').promises;
 
 const router = express.Router();
 
-// Multer disk storage for local uploads
+/* -------------------------------
+   Multer Storage for photos
+--------------------------------*/
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '..', 'uploads', 'management');
-    fs.mkdir(uploadPath, { recursive: true })
-      .then(() => cb(null, uploadPath))
-      .catch(err => cb(err));
+  destination: async (req, file, cb) => {
+    try {
+      const uploadPath = path.join(__dirname, '..', 'uploads', 'management');
+      await fs.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
   }
 });
 
 const upload = multer({ storage });
 
-// POST /management - Create management member
+/* -------------------------------
+   Helper: Build public photo URL
+--------------------------------*/
+const buildPhotoUrl = (req, filename) => {
+  return `${req.protocol}://${req.get('host')}/uploads/management/${filename}`;
+};
+
+/* -------------------------------
+   POST /management - Create
+--------------------------------*/
 router.post('/', authenticateToken, upload.single('photo'), async (req, res) => {
   try {
     const { position, title, fullName, linkedinLink } = req.body;
+
+    const photoUrl = req.file ? buildPhotoUrl(req, req.file.filename) : '';
 
     const newMember = new Management({
       position: position ? parseInt(position) : 0,
       title,
       fullName,
       linkedinLink: linkedinLink || '',
-      photo: req.file ? req.file.path : '',
+      photo: photoUrl
     });
 
     await newMember.save();
 
-    res.status(201).json({ 
-      message: 'Management member created successfully', 
-      member: newMember 
+    res.status(201).json({
+      message: 'Management member created successfully',
+      member: newMember
     });
   } catch (error) {
     console.error(error);
@@ -48,15 +65,16 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
   }
 });
 
-// GET /management - Fetch all management members (sorted by position)
+/* -------------------------------
+   GET /management - List (sorted by position)
+--------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const members = await Management.find()
-      .sort({ position: 1 });
+    const members = await Management.find().sort({ position: 1 });
 
     res.status(200).json({
       members,
-      totalCount: members.length,
+      totalCount: members.length
     });
   } catch (error) {
     console.error(error);
@@ -64,12 +82,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /management/:id - Fetch single management member
+/* -------------------------------
+   GET /management/:id - Single
+--------------------------------*/
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid management member ID' });
     }
 
@@ -86,37 +106,42 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /management/:id - Update management member
+/* -------------------------------
+   PUT /management/:id - Update
+--------------------------------*/
 router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) => {
   try {
     const { id } = req.params;
     const { position, title, fullName, linkedinLink } = req.body;
 
-    const member = await Management.findById(id);
-    if (!member) {
-      return res.status(404).json({ message: 'Management member not found' });
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid management member ID' });
     }
+
+    const member = await Management.findById(id);
+    if (!member) return res.status(404).json({ message: 'Management member not found' });
 
     const updateData = {
       position: position ? parseInt(position) : member.position,
       title,
       fullName,
-      linkedinLink: linkedinLink || '',
+      linkedinLink: linkedinLink || ''
     };
 
     if (req.file) {
-      // Delete old image if it exists
-      if (member.photo) {
-        await fs.unlink(member.photo).catch(console.error);
+      // Delete old photo if exists
+      if (member.photo && !member.photo.startsWith('http')) {
+        const oldPath = path.join(__dirname, '..', 'uploads', 'management', path.basename(member.photo));
+        await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.photo = req.file.path;
+      updateData.photo = buildPhotoUrl(req, req.file.filename);
     }
 
     const updatedMember = await Management.findByIdAndUpdate(id, updateData, { new: true });
 
-    res.status(200).json({ 
-      message: 'Management member updated successfully', 
-      member: updatedMember 
+    res.status(200).json({
+      message: 'Management member updated successfully',
+      member: updatedMember
     });
   } catch (error) {
     console.error(error);
@@ -124,20 +149,23 @@ router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) =
   }
 });
 
-// DELETE /management/:id - Delete management member
+/* -------------------------------
+   DELETE /management/:id
+--------------------------------*/
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const member = await Management.findById(req.params.id);
-    if (!member) {
-      return res.status(404).json({ message: 'Management member not found' });
+    const { id } = req.params;
+
+    const member = await Management.findById(id);
+    if (!member) return res.status(404).json({ message: 'Management member not found' });
+
+    // Delete old photo if exists
+    if (member.photo && !member.photo.startsWith('http')) {
+      const oldPath = path.join(__dirname, '..', 'uploads', 'management', path.basename(member.photo));
+      await fs.unlink(oldPath).catch(() => {});
     }
 
-    // Delete image file if it exists
-    if (member.photo) {
-      await fs.unlink(member.photo).catch(console.error);
-    }
-
-    await Management.findByIdAndDelete(req.params.id);
+    await Management.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'Management member deleted successfully' });
   } catch (error) {
@@ -147,4 +175,3 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-

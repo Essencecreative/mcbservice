@@ -1,3 +1,4 @@
+// routes/board-of-directors.js
 const express = require('express');
 const mongoose = require('mongoose');
 const BoardOfDirector = require('../models/BoardOfDirector');
@@ -8,68 +9,92 @@ const fs = require('fs').promises;
 
 const router = express.Router();
 
-// Multer disk storage for local uploads
+/* -------------------------------------
+   Multer Storage for Board Member Photos
+---------------------------------------*/
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '..', 'uploads', 'board-of-directors');
-    fs.mkdir(uploadPath, { recursive: true })
-      .then(() => cb(null, uploadPath))
-      .catch(err => cb(err));
+  destination: async (req, file, cb) => {
+    try {
+      const uploadPath = path.join(__dirname, '..', 'uploads', 'board-of-directors');
+      await fs.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
-  filename: function (req, file, cb) {
+
+  filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
   }
 });
 
 const upload = multer({ storage });
 
-// POST /board-of-directors - Create board member
+/* -------------------------------------
+   Helper: Build Public Image URL
+---------------------------------------*/
+const buildImageUrl = (req, filename) => {
+  return `${req.protocol}://${req.get('host')}/uploads/board-of-directors/${filename}`;
+};
+
+/* -------------------------------------
+   POST /board-of-directors - Create
+---------------------------------------*/
 router.post('/', authenticateToken, upload.single('photo'), async (req, res) => {
   try {
     const { position, title, fullName, linkedinLink } = req.body;
+
+    const photoUrl = req.file
+      ? buildImageUrl(req, req.file.filename)
+      : '';
 
     const newMember = new BoardOfDirector({
       position: position ? parseInt(position) : 0,
       title,
       fullName,
       linkedinLink: linkedinLink || '',
-      photo: req.file ? req.file.path : '',
+      photo: photoUrl
     });
 
     await newMember.save();
 
-    res.status(201).json({ 
-      message: 'Board member created successfully', 
-      member: newMember 
+    res.status(201).json({
+      message: 'Board member created successfully',
+      member: newMember
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to create board member' });
   }
 });
 
-// GET /board-of-directors - Fetch all board members (sorted by position)
+/* -------------------------------------
+   GET /board-of-directors - List (sorted by position)
+---------------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const members = await BoardOfDirector.find()
-      .sort({ position: 1 });
+    const members = await BoardOfDirector.find().sort({ position: 1 });
 
     res.status(200).json({
       members,
-      totalCount: members.length,
+      totalCount: members.length
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to fetch board members' });
   }
 });
 
-// GET /board-of-directors/:id - Fetch single board member
+/* -------------------------------------
+   GET /board-of-directors/:id - Single
+---------------------------------------*/
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid board member ID' });
     }
 
@@ -80,19 +105,27 @@ router.get('/:id', async (req, res) => {
     }
 
     res.status(200).json(member);
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to fetch board member' });
   }
 });
 
-// PUT /board-of-directors/:id - Update board member
+/* -------------------------------------
+   PUT /board-of-directors/:id - Update
+---------------------------------------*/
 router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) => {
   try {
     const { id } = req.params;
     const { position, title, fullName, linkedinLink } = req.body;
 
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid board member ID' });
+    }
+
     const member = await BoardOfDirector.findById(id);
+
     if (!member) {
       return res.status(404).json({ message: 'Board member not found' });
     }
@@ -101,45 +134,71 @@ router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) =
       position: position ? parseInt(position) : member.position,
       title,
       fullName,
-      linkedinLink: linkedinLink || '',
+      linkedinLink: linkedinLink || ''
     };
 
+    // If a new image was uploaded
     if (req.file) {
-      // Delete old image if it exists
+      // Remove old file
       if (member.photo) {
-        await fs.unlink(member.photo).catch(console.error);
+        const oldPath = path.join(
+          __dirname,
+          '..',
+          'uploads',
+          'board-of-directors',
+          path.basename(member.photo)
+        );
+        await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.photo = req.file.path;
+
+      updateData.photo = buildImageUrl(req, req.file.filename);
     }
 
-    const updatedMember = await BoardOfDirector.findByIdAndUpdate(id, updateData, { new: true });
+    const updatedMember = await BoardOfDirector.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    );
 
-    res.status(200).json({ 
-      message: 'Board member updated successfully', 
-      member: updatedMember 
+    res.status(200).json({
+      message: 'Board member updated successfully',
+      member: updatedMember
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to update board member' });
   }
 });
 
-// DELETE /board-of-directors/:id - Delete board member
+/* -------------------------------------
+   DELETE /board-of-directors/:id
+---------------------------------------*/
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const member = await BoardOfDirector.findById(req.params.id);
+    const { id } = req.params;
+
+    const member = await BoardOfDirector.findById(id);
     if (!member) {
       return res.status(404).json({ message: 'Board member not found' });
     }
 
-    // Delete image file if it exists
+    // Delete old image if exists
     if (member.photo) {
-      await fs.unlink(member.photo).catch(console.error);
+      const oldPath = path.join(
+        __dirname,
+        '..',
+        'uploads',
+        'board-of-directors',
+        path.basename(member.photo)
+      );
+      await fs.unlink(oldPath).catch(() => {});
     }
 
-    await BoardOfDirector.findByIdAndDelete(req.params.id);
+    await BoardOfDirector.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'Board member deleted successfully' });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to delete board member' });
@@ -147,4 +206,3 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-

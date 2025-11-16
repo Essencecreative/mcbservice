@@ -9,38 +9,56 @@ const fs = require('fs').promises;
 
 const router = express.Router();
 
-// Multer disk storage for local uploads (for PDF files)
+/* -------------------------------
+   Multer Storage for PDF uploads
+--------------------------------*/
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '..', 'uploads', 'investor-categories');
-    fs.mkdir(uploadPath, { recursive: true })
-      .then(() => cb(null, uploadPath))
-      .catch(err => cb(err));
+  destination: async (req, file, cb) => {
+    try {
+      const uploadPath = path.join(__dirname, '..', 'uploads', 'investor-categories');
+      await fs.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
   }
 });
 
 const upload = multer({ storage });
 
-// POST /investor-categories - Create investor category item
+/* -------------------------------
+   Helper: Build Public PDF URL
+--------------------------------*/
+const buildPdfUrl = (req, filename) => {
+  return `${req.protocol}://${req.get('host')}/uploads/investor-categories/${filename}`;
+};
+
+/* -------------------------------
+   POST /investor-categories - Create
+--------------------------------*/
 router.post('/', authenticateToken, upload.single('pdf'), async (req, res) => {
   try {
     const { category, title, description, pdfUrl } = req.body;
+
+    const finalPdfUrl = req.file
+      ? buildPdfUrl(req, req.file.filename)
+      : pdfUrl || '';
 
     const newItem = new InvestorCategory({
       category,
       title,
       description,
-      pdfUrl: req.file ? req.file.path : pdfUrl || '', // Use uploaded file path or provided URL
+      pdfUrl: finalPdfUrl
     });
 
     await newItem.save();
 
-    res.status(201).json({ 
-      message: 'Investor category item created successfully', 
-      item: newItem 
+    res.status(201).json({
+      message: 'Investor category item created successfully',
+      item: newItem
     });
   } catch (error) {
     console.error(error);
@@ -48,37 +66,32 @@ router.post('/', authenticateToken, upload.single('pdf'), async (req, res) => {
   }
 });
 
-// GET /investor-categories - Fetch paginated investor category items
+/* -------------------------------
+   GET /investor-categories - List (paginated)
+--------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      category,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const category = req.query.category;
+    const sortBy = req.query.sortBy || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
 
     const query = {};
-    if (category) {
-      query.category = category;
-    }
-
-    const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
-    const items = await InvestorCategory.find(query)
-      .sort(sortOptions)
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
+    if (category) query.category = category;
 
     const totalCount = await InvestorCategory.countDocuments(query);
+
+    const items = await InvestorCategory.find(query)
+      .sort({ [sortBy]: sortOrder })
+      .skip((page - 1) * limit)
+      .limit(limit);
 
     res.status(200).json({
       items,
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
-      currentPage: Number(page),
+      currentPage: page
     });
   } catch (error) {
     console.error(error);
@@ -86,20 +99,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /investor-categories/:id - Fetch single investor category item
+/* -------------------------------
+   GET /investor-categories/:id - Single
+--------------------------------*/
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid investor category item ID' });
     }
 
     const item = await InvestorCategory.findById(id);
-
-    if (!item) {
-      return res.status(404).json({ message: 'Investor category item not found' });
-    }
+    if (!item) return res.status(404).json({ message: 'Investor category item not found' });
 
     res.status(200).json(item);
   } catch (error) {
@@ -108,39 +119,44 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /investor-categories/:id - Update investor category item
+/* -------------------------------
+   PUT /investor-categories/:id - Update
+--------------------------------*/
 router.put('/:id', authenticateToken, upload.single('pdf'), async (req, res) => {
   try {
     const { id } = req.params;
     const { category, title, description, pdfUrl } = req.body;
 
-    const item = await InvestorCategory.findById(id);
-    if (!item) {
-      return res.status(404).json({ message: 'Investor category item not found' });
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid investor category item ID' });
     }
+
+    const item = await InvestorCategory.findById(id);
+    if (!item) return res.status(404).json({ message: 'Investor category item not found' });
 
     const updateData = {
       category,
       title,
-      description,
+      description
     };
 
     if (req.file) {
-      // Delete old PDF if it exists
+      // Delete old PDF if local
       if (item.pdfUrl && !item.pdfUrl.startsWith('http')) {
-        await fs.unlink(item.pdfUrl).catch(console.error);
+        const oldPath = path.join(__dirname, '..', 'uploads', 'investor-categories', path.basename(item.pdfUrl));
+        await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.pdfUrl = req.file.path;
+      updateData.pdfUrl = buildPdfUrl(req, req.file.filename);
     } else if (pdfUrl !== undefined) {
-      // If pdfUrl is provided but no file, use the URL
+      // Use provided URL if given
       updateData.pdfUrl = pdfUrl || '';
     }
 
     const updatedItem = await InvestorCategory.findByIdAndUpdate(id, updateData, { new: true });
 
-    res.status(200).json({ 
-      message: 'Investor category item updated successfully', 
-      item: updatedItem 
+    res.status(200).json({
+      message: 'Investor category item updated successfully',
+      item: updatedItem
     });
   } catch (error) {
     console.error(error);
@@ -148,20 +164,23 @@ router.put('/:id', authenticateToken, upload.single('pdf'), async (req, res) => 
   }
 });
 
-// DELETE /investor-categories/:id - Delete investor category item
+/* -------------------------------
+   DELETE /investor-categories/:id
+--------------------------------*/
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const item = await InvestorCategory.findById(req.params.id);
-    if (!item) {
-      return res.status(404).json({ message: 'Investor category item not found' });
-    }
+    const { id } = req.params;
 
-    // Delete PDF file if it exists and is a local file
+    const item = await InvestorCategory.findById(id);
+    if (!item) return res.status(404).json({ message: 'Investor category item not found' });
+
+    // Delete local PDF if exists
     if (item.pdfUrl && !item.pdfUrl.startsWith('http')) {
-      await fs.unlink(item.pdfUrl).catch(console.error);
+      const oldPath = path.join(__dirname, '..', 'uploads', 'investor-categories', path.basename(item.pdfUrl));
+      await fs.unlink(oldPath).catch(() => {});
     }
 
-    await InvestorCategory.findByIdAndDelete(req.params.id);
+    await InvestorCategory.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'Investor category item deleted successfully' });
   } catch (error) {
@@ -171,4 +190,3 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-
