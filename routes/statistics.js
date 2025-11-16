@@ -2,10 +2,21 @@ const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middlewares/authMiddleware');
 
-const News = require('../models/news');
-const Opportunity = require("../models/Opportunity");
-const Publication = require('../models/Publication');
-const Team = require('../models/team');
+const NewsAndUpdate = require('../models/NewsAndUpdate');
+const InvestorNews = require('../models/InvestorNews');
+const Opportunity = require('../models/Opportunity');
+const Product = require('../models/product');
+const Carousel = require('../models/Carousel');
+const BoardOfDirector = require('../models/BoardOfDirector');
+const Management = require('../models/Management');
+const HeaderUpdate = require('../models/HeaderUpdate');
+const InvestorCategory = require('../models/InvestorCategory');
+const MenuCategory = require('../models/MenuCategory');
+const MenuItem = require('../models/MenuItem');
+const ForeignExchange = require('../models/ForeignExchange');
+const Wakala = require('../models/Wakala');
+const FAQ = require('../models/FAQ');
+const User = require('../models/user');
 
 function getMonthlyAggregation(model) {
   const sixMonthsAgo = new Date();
@@ -39,26 +50,96 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
     const [
-      totalNews, monthlyNews, newsTrends,
+      totalNewsAndUpdates, monthlyNewsAndUpdates, newsAndUpdatesTrends,
+      totalInvestorNews, monthlyInvestorNews, investorNewsTrends,
       totalOpportunities, monthlyOpportunities, opportunityTrends,
-      totalPublications, monthlyPublications, publicationTrends,
-      totalTeam, monthlyTeam, teamTrends
+      totalProducts, monthlyProducts, productTrends,
+      totalCarousels, monthlyCarousels, carouselTrends,
+      totalBoardMembers, monthlyBoardMembers, boardMemberTrends,
+      totalManagement, monthlyManagement, managementTrends,
+      totalHeaderUpdates, monthlyHeaderUpdates, headerUpdateTrends,
+      totalInvestorCategories, monthlyInvestorCategories, investorCategoryTrends,
+      totalMenuCategories, monthlyMenuCategories, menuCategoryTrends,
+      totalMenuItems, monthlyMenuItems, menuItemTrends,
+      totalForeignExchange, monthlyForeignExchange, foreignExchangeTrends,
+      totalWakalas, monthlyWakalas, wakalaTrends,
+      totalFAQs, monthlyFAQs, faqTrends,
+      totalUsers, monthlyUsers, userTrends
     ] = await Promise.all([
-      News.countDocuments(),
-      News.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
-      getMonthlyAggregation(News),
+      // News and Updates
+      NewsAndUpdate.countDocuments(),
+      NewsAndUpdate.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(NewsAndUpdate),
 
+      // Investor News
+      InvestorNews.countDocuments(),
+      InvestorNews.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(InvestorNews),
+
+      // Opportunities
       Opportunity.countDocuments(),
       Opportunity.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
       getMonthlyAggregation(Opportunity),
 
-      Publication.countDocuments(),
-      Publication.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
-      getMonthlyAggregation(Publication),
+      // Products
+      Product.countDocuments(),
+      Product.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(Product),
 
-      Team.countDocuments(),
-      Team.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
-      getMonthlyAggregation(Team),
+      // Carousel
+      Carousel.countDocuments(),
+      Carousel.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(Carousel),
+
+      // Board of Directors
+      BoardOfDirector.countDocuments(),
+      BoardOfDirector.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(BoardOfDirector),
+
+      // Management
+      Management.countDocuments(),
+      Management.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(Management),
+
+      // Header Updates
+      HeaderUpdate.countDocuments(),
+      HeaderUpdate.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(HeaderUpdate),
+
+      // Investor Categories
+      InvestorCategory.countDocuments(),
+      InvestorCategory.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(InvestorCategory),
+
+      // Menu Categories
+      MenuCategory.countDocuments(),
+      MenuCategory.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(MenuCategory),
+
+      // Menu Items
+      MenuItem.countDocuments(),
+      MenuItem.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(MenuItem),
+
+      // Foreign Exchange
+      ForeignExchange.countDocuments(),
+      ForeignExchange.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(ForeignExchange),
+
+      // Wakala
+      Wakala.countDocuments(),
+      Wakala.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(Wakala),
+
+      // FAQs
+      FAQ.countDocuments(),
+      FAQ.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(FAQ),
+
+      // Users
+      User.countDocuments(),
+      User.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+      getMonthlyAggregation(User),
     ]);
 
     const formatTrends = (data) =>
@@ -68,10 +149,81 @@ router.get('/summary', authenticateToken, async (req, res) => {
       }));
 
     res.status(200).json({
-      news: { total: totalNews, thisMonth: monthlyNews, trends: formatTrends(newsTrends) },
-      opportunities: { total: totalOpportunities, thisMonth: monthlyOpportunities, trends: formatTrends(opportunityTrends) },
-      publications: { total: totalPublications, thisMonth: monthlyPublications, trends: formatTrends(publicationTrends) },
-      team: { total: totalTeam, thisMonth: monthlyTeam, trends: formatTrends(teamTrends) },
+      newsAndUpdates: { 
+        total: totalNewsAndUpdates, 
+        thisMonth: monthlyNewsAndUpdates, 
+        trends: formatTrends(newsAndUpdatesTrends) 
+      },
+      investorNews: { 
+        total: totalInvestorNews, 
+        thisMonth: monthlyInvestorNews, 
+        trends: formatTrends(investorNewsTrends) 
+      },
+      opportunities: { 
+        total: totalOpportunities, 
+        thisMonth: monthlyOpportunities, 
+        trends: formatTrends(opportunityTrends) 
+      },
+      products: { 
+        total: totalProducts, 
+        thisMonth: monthlyProducts, 
+        trends: formatTrends(productTrends) 
+      },
+      carousels: { 
+        total: totalCarousels, 
+        thisMonth: monthlyCarousels, 
+        trends: formatTrends(carouselTrends) 
+      },
+      boardMembers: { 
+        total: totalBoardMembers, 
+        thisMonth: monthlyBoardMembers, 
+        trends: formatTrends(boardMemberTrends) 
+      },
+      management: { 
+        total: totalManagement, 
+        thisMonth: monthlyManagement, 
+        trends: formatTrends(managementTrends) 
+      },
+      headerUpdates: { 
+        total: totalHeaderUpdates, 
+        thisMonth: monthlyHeaderUpdates, 
+        trends: formatTrends(headerUpdateTrends) 
+      },
+      investorCategories: { 
+        total: totalInvestorCategories, 
+        thisMonth: monthlyInvestorCategories, 
+        trends: formatTrends(investorCategoryTrends) 
+      },
+      menuCategories: { 
+        total: totalMenuCategories, 
+        thisMonth: monthlyMenuCategories, 
+        trends: formatTrends(menuCategoryTrends) 
+      },
+      menuItems: { 
+        total: totalMenuItems, 
+        thisMonth: monthlyMenuItems, 
+        trends: formatTrends(menuItemTrends) 
+      },
+      foreignExchange: { 
+        total: totalForeignExchange, 
+        thisMonth: monthlyForeignExchange, 
+        trends: formatTrends(foreignExchangeTrends) 
+      },
+      wakalas: { 
+        total: totalWakalas, 
+        thisMonth: monthlyWakalas, 
+        trends: formatTrends(wakalaTrends) 
+      },
+      faqs: { 
+        total: totalFAQs, 
+        thisMonth: monthlyFAQs, 
+        trends: formatTrends(faqTrends) 
+      },
+      users: { 
+        total: totalUsers, 
+        thisMonth: monthlyUsers, 
+        trends: formatTrends(userTrends) 
+      },
     });
   } catch (error) {
     console.error(error);

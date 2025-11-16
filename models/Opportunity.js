@@ -5,8 +5,9 @@ const opportunitySchema = new mongoose.Schema({
   description: { type: String, required: true },
   category: {
     type: String,
-    enum: ["job", "proposal"],
+    enum: ["job"],
     required: true,
+    default: "job",
   },
   documentUrl: { type: String }, // cloudinary file link
   createdAt: { type: Date, default: Date.now },

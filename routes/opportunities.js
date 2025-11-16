@@ -82,6 +82,23 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /opportunities/:id - Get single opportunity
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const opportunity = await Opportunity.findById(id);
+
+    if (!opportunity) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+
+    res.json(opportunity);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch opportunity" });
+  }
+});
+
 // PUT /opportunities/:id
 router.put("/:id", upload.single("document"), async (req, res) => {
   try {
