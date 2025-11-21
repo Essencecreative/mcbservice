@@ -19,6 +19,15 @@ const InvestorNewsSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Image is required'],
   },
+  bannerPhoto: {
+    type: String,
+    required: false,
+  },
+  publishedDate: {
+    type: Date,
+    required: false,
+    default: Date.now,
+  },
 }, {
   timestamps: true, // Automatically add createdAt and updatedAt fields
 });

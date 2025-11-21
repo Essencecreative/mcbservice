@@ -60,18 +60,67 @@ router.get('/', async (req, res) => {
 });
 
 /* -------------------------------
-   GET /menu-items/all - Admin: all menu items
+   GET /menu-items/all - Admin: all menu items with pagination
 --------------------------------*/
 router.get('/all', authenticateToken, async (req, res) => {
   try {
+    const { page = 1, limit = 10, sortBy = 'position', sortOrder = 'asc' } = req.query;
+    
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
     const items = await MenuItem.find()
-      .sort({ menuCategory: 1, subcategory: 1, position: 1 })
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .select('-__v');
+
+    const totalCount = await MenuItem.countDocuments();
+
+    res.status(200).json({ 
+      items,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch menu items' });
+  }
+});
+
+/* -------------------------------
+   GET /menu-items/route/:route - Get menu items by route (public)
+--------------------------------*/
+router.get('/route/:route', async (req, res) => {
+  try {
+    let { route } = req.params;
+    const { type } = req.query;
+
+    // Decode the route and ensure it starts with /
+    route = decodeURIComponent(route);
+    if (!route.startsWith('/')) {
+      route = '/' + route;
+    }
+
+    const query = {
+      route: route,
+      isActive: true
+    };
+
+    // If type is provided, filter by name
+    if (type) {
+      query.name = decodeURIComponent(type);
+    }
+
+    const items = await MenuItem.find(query)
+      .sort({ position: 1 })
       .select('-__v');
 
     res.status(200).json({ items });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Failed to fetch menu items' });
+    res.status(500).json({ message: 'Failed to fetch menu items by route', error: error.message });
   }
 });
 

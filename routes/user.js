@@ -110,11 +110,20 @@ router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+
     const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid password' });
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
 
     const token = jwt.sign({
       id: user._id,
@@ -134,7 +143,33 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Error logging in', error: error.message });
+  }
+});
+
+// Verify token endpoint
+router.get('/verify', authenticateToken, async (req, res) => {
+  try {
+    // If middleware passed, token is valid
+    // Optionally fetch fresh user data from database
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      valid: true,
+      user: {
+        id: user._id,
+        username: user.username,
+        role: user.role,
+        photo: user?.photo
+      }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(500).json({ message: 'Error verifying token', error: error.message });
   }
 });
 

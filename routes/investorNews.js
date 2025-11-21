@@ -39,21 +39,28 @@ const buildImageUrl = (req, filename) => {
 /* -------------------------------
    POST /investor-news - Create
 --------------------------------*/
-router.post('/', authenticateToken, upload.single('image'), async (req, res) => {
+router.post('/', authenticateToken, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]), async (req, res) => {
   try {
-    const { title, shortDescription, content } = req.body;
+    const { title, shortDescription, content, publishedDate } = req.body;
 
-    if (!req.file) {
+    if (!req.files || !req.files['image'] || req.files['image'].length === 0) {
       return res.status(400).json({ message: 'Image is required' });
     }
 
-    const imageUrl = buildImageUrl(req, req.file.filename);
+    const imageUrl = buildImageUrl(req, req.files['image'][0].filename);
+    let bannerPhotoUrl = null;
+    
+    if (req.files['bannerPhoto'] && req.files['bannerPhoto'].length > 0) {
+      bannerPhotoUrl = buildImageUrl(req, req.files['bannerPhoto'][0].filename);
+    }
 
     const newInvestorNews = new InvestorNews({
       title,
       shortDescription,
       content,
-      image: imageUrl
+      image: imageUrl,
+      bannerPhoto: bannerPhotoUrl,
+      publishedDate: publishedDate ? new Date(publishedDate) : new Date()
     });
 
     await newInvestorNews.save();
@@ -75,13 +82,17 @@ router.get('/', async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const sortBy = req.query.sortBy || 'createdAt';
+    const sortBy = req.query.sortBy || 'publishedDate';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
 
     const totalCount = await InvestorNews.countDocuments();
 
+    // Sort by publishedDate (newest first), fallback to createdAt if publishedDate doesn't exist
     const investorNews = await InvestorNews.find()
-      .sort({ [sortBy]: sortOrder })
+      .sort({ 
+        publishedDate: -1,
+        createdAt: -1 
+      })
       .skip((page - 1) * limit)
       .limit(limit);
 
@@ -121,10 +132,10 @@ router.get('/:id', async (req, res) => {
 /* -------------------------------
    PUT /investor-news/:id - Update
 --------------------------------*/
-router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
+router.put('/:id', authenticateToken, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, shortDescription, content } = req.body;
+    const { title, shortDescription, content, publishedDate } = req.body;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid investor news ID' });
@@ -134,14 +145,27 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
     if (!investorNews) return res.status(404).json({ message: 'Investor news not found' });
 
     const updateData = { title, shortDescription, content };
+    
+    if (publishedDate) {
+      updateData.publishedDate = new Date(publishedDate);
+    }
 
-    if (req.file) {
+    if (req.files && req.files['image'] && req.files['image'].length > 0) {
       // Delete old image if it exists
       if (investorNews.image && !investorNews.image.startsWith('http')) {
         const oldPath = path.join(__dirname, '..', 'uploads', 'investor-news', path.basename(investorNews.image));
         await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.image = buildImageUrl(req, req.file.filename);
+      updateData.image = buildImageUrl(req, req.files['image'][0].filename);
+    }
+
+    if (req.files && req.files['bannerPhoto'] && req.files['bannerPhoto'].length > 0) {
+      // Delete old banner photo if it exists
+      if (investorNews.bannerPhoto && !investorNews.bannerPhoto.startsWith('http')) {
+        const oldPath = path.join(__dirname, '..', 'uploads', 'investor-news', path.basename(investorNews.bannerPhoto));
+        await fs.unlink(oldPath).catch(() => {});
+      }
+      updateData.bannerPhoto = buildImageUrl(req, req.files['bannerPhoto'][0].filename);
     }
 
     const updatedInvestorNews = await InvestorNews.findByIdAndUpdate(id, updateData, { new: true });
@@ -169,6 +193,12 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Delete old image if exists
     if (investorNews.image && !investorNews.image.startsWith('http')) {
       const oldPath = path.join(__dirname, '..', 'uploads', 'investor-news', path.basename(investorNews.image));
+      await fs.unlink(oldPath).catch(() => {});
+    }
+
+    // Delete old banner photo if exists
+    if (investorNews.bannerPhoto && !investorNews.bannerPhoto.startsWith('http')) {
+      const oldPath = path.join(__dirname, '..', 'uploads', 'investor-news', path.basename(investorNews.bannerPhoto));
       await fs.unlink(oldPath).catch(() => {});
     }
 

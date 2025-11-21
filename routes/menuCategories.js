@@ -22,15 +22,27 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /menu-categories/all - Get all menu categories including inactive (admin)
+// GET /menu-categories/all - Get all menu categories including inactive (admin) with pagination
 router.get('/all', authenticateToken, async (req, res) => {
   try {
+    const { page = 1, limit = 10, sortBy = 'position', sortOrder = 'asc' } = req.query;
+    
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
     const categories = await MenuCategory.find()
-      .sort({ position: 1 })
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
       .select('-__v');
+
+    const totalCount = await MenuCategory.countDocuments();
 
     res.status(200).json({
       categories,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page),
     });
   } catch (error) {
     console.error(error);

@@ -66,15 +66,27 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
 });
 
 /* -------------------------------
-   GET /management - List (sorted by position)
+   GET /management - List (sorted by position) with pagination
 --------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const members = await Management.find().sort({ position: 1 });
+    const { page = 1, limit = 10, sortBy = 'position', sortOrder = 'asc' } = req.query;
+    
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    const members = await Management.find()
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const totalCount = await Management.countDocuments();
 
     res.status(200).json({
       members,
-      totalCount: members.length
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page)
     });
   } catch (error) {
     console.error(error);

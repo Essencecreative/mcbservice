@@ -38,17 +38,26 @@ const buildImageUrl = (req, filename) => {
 /* -------------------------------
    POST /news-and-updates - Create
 --------------------------------*/
-router.post('/', authenticateToken, upload.single('image'), async (req, res) => {
+router.post('/', authenticateToken, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]), async (req, res) => {
   try {
-    const { title, shortDescription, content } = req.body;
+    const { title, shortDescription, content, publishedDate } = req.body;
 
-    if (!req.file) return res.status(400).json({ message: 'Image is required' });
+    if (!req.files || !req.files['image'] || req.files['image'].length === 0) {
+      return res.status(400).json({ message: 'Image is required' });
+    }
+
+    let bannerPhotoUrl = null;
+    if (req.files['bannerPhoto'] && req.files['bannerPhoto'].length > 0) {
+      bannerPhotoUrl = buildImageUrl(req, req.files['bannerPhoto'][0].filename);
+    }
 
     const newNews = new NewsAndUpdate({
       title,
       shortDescription,
       content,
-      image: buildImageUrl(req, req.file.filename)
+      image: buildImageUrl(req, req.files['image'][0].filename),
+      bannerPhoto: bannerPhotoUrl,
+      publishedDate: publishedDate ? new Date(publishedDate) : new Date()
     });
 
     await newNews.save();
@@ -65,9 +74,13 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
 --------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    const { page = 1, limit = 10, sortBy = 'publishedDate', sortOrder = 'desc' } = req.query;
 
-    const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+    // Sort by publishedDate (newest first), fallback to createdAt if publishedDate doesn't exist
+    const sortOptions = { 
+      publishedDate: -1,
+      createdAt: -1 
+    };
     const newsList = await NewsAndUpdate.find()
       .sort(sortOptions)
       .skip((page - 1) * limit)
@@ -108,7 +121,7 @@ router.get('/:id', async (req, res) => {
 /* -------------------------------
    PUT /news-and-updates/:id - Update
 --------------------------------*/
-router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
+router.put('/:id', authenticateToken, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]), async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid ID' });
@@ -116,16 +129,29 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
     const news = await NewsAndUpdate.findById(id);
     if (!news) return res.status(404).json({ message: 'News & Update not found' });
 
-    const { title, shortDescription, content } = req.body;
+    const { title, shortDescription, content, publishedDate } = req.body;
     const updateData = { title, shortDescription, content };
+    
+    if (publishedDate) {
+      updateData.publishedDate = new Date(publishedDate);
+    }
 
-    if (req.file) {
+    if (req.files && req.files['image'] && req.files['image'].length > 0) {
       // Delete old image if exists
       if (news.image) {
         const oldPath = path.join(__dirname, '..', news.image.replace(`${req.protocol}://${req.get('host')}/`, ''));
         await fs.unlink(oldPath).catch(() => {});
       }
-      updateData.image = buildImageUrl(req, req.file.filename);
+      updateData.image = buildImageUrl(req, req.files['image'][0].filename);
+    }
+
+    if (req.files && req.files['bannerPhoto'] && req.files['bannerPhoto'].length > 0) {
+      // Delete old banner photo if exists
+      if (news.bannerPhoto) {
+        const oldPath = path.join(__dirname, '..', news.bannerPhoto.replace(`${req.protocol}://${req.get('host')}/`, ''));
+        await fs.unlink(oldPath).catch(() => {});
+      }
+      updateData.bannerPhoto = buildImageUrl(req, req.files['bannerPhoto'][0].filename);
     }
 
     const updatedNews = await NewsAndUpdate.findByIdAndUpdate(id, updateData, { new: true });
@@ -150,6 +176,12 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Delete image if exists
     if (news.image) {
       const oldPath = path.join(__dirname, '..', news.image.replace(`${req.protocol}://${req.get('host')}/`, ''));
+      await fs.unlink(oldPath).catch(() => {});
+    }
+
+    // Delete banner photo if exists
+    if (news.bannerPhoto) {
+      const oldPath = path.join(__dirname, '..', news.bannerPhoto.replace(`${req.protocol}://${req.get('host')}/`, ''));
       await fs.unlink(oldPath).catch(() => {});
     }
 

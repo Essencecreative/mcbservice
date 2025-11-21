@@ -25,10 +25,24 @@ router.get('/', async (req, res) => {
 // GET /wakala/all - Get all wakala locations (including inactive) - requires auth
 router.get('/all', authenticateToken, async (req, res) => {
   try {
-    const wakalas = await Wakala.find()
-      .sort({ region: 1, district: 1, name: 1 });
+    const { page = 1, limit = 10, sortBy = 'name', sortOrder = 'asc' } = req.query;
     
-    res.json({ wakalas });
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    const wakalas = await Wakala.find()
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    
+    const totalCount = await Wakala.countDocuments();
+    
+    res.json({ 
+      wakalas,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page)
+    });
   } catch (error) {
     console.error('Error fetching wakala locations:', error);
     res.status(500).json({ message: 'Failed to fetch wakala locations' });

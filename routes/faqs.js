@@ -19,10 +19,24 @@ router.get('/', async (req, res) => {
 // GET /faqs/all - Get all FAQs (including inactive) - requires auth
 router.get('/all', authenticateToken, async (req, res) => {
   try {
-    const faqs = await FAQ.find()
-      .sort({ position: 1, createdAt: 1 });
+    const { page = 1, limit = 10, sortBy = 'position', sortOrder = 'asc' } = req.query;
     
-    res.json({ faqs });
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    const faqs = await FAQ.find()
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    
+    const totalCount = await FAQ.countDocuments();
+    
+    res.json({ 
+      faqs,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page)
+    });
   } catch (error) {
     console.error('Error fetching FAQs:', error);
     res.status(500).json({ message: 'Failed to fetch FAQs' });

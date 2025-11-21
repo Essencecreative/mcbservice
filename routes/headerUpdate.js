@@ -33,15 +33,26 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /header-update - Fetch all header updates
+// GET /header-update - Fetch all header updates with pagination
 router.get('/', async (req, res) => {
   try {
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
     const updates = await HeaderUpdate.find()
-      .sort({ createdAt: -1 });
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const totalCount = await HeaderUpdate.countDocuments();
 
     res.status(200).json({
       updates,
-      totalCount: updates.length,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page),
     });
   } catch (error) {
     console.error(error);

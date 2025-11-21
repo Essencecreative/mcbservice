@@ -70,15 +70,27 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
 });
 
 /* -------------------------------------
-   GET /board-of-directors - List (sorted by position)
+   GET /board-of-directors - List (sorted by position) with pagination
 ---------------------------------------*/
 router.get('/', async (req, res) => {
   try {
-    const members = await BoardOfDirector.find().sort({ position: 1 });
+    const { page = 1, limit = 10, sortBy = 'position', sortOrder = 'asc' } = req.query;
+    
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    const members = await BoardOfDirector.find()
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const totalCount = await BoardOfDirector.countDocuments();
 
     res.status(200).json({
       members,
-      totalCount: members.length
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: Number(page)
     });
 
   } catch (error) {
