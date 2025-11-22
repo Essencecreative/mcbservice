@@ -35,6 +35,10 @@ app.use(bodyParser.json({ limit: '10mb' })); // Increase if large images
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
+// Trust proxy - Important for getting correct protocol/host behind reverse proxy
+// This allows req.protocol and req.get('host') to work correctly with nginx/load balancers
+app.set('trust proxy', true);
+
 // === SERVE UPLOADED FILES LOCALLY ===
 const uploadDirs = {
   products: path.join(__dirname, 'uploads', 'products'),

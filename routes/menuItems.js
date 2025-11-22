@@ -5,6 +5,7 @@ const authenticateToken = require('../middlewares/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { buildImageUrl } = require('../utils/imageUrl');
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ const upload = multer({ storage });
    Helper: Build public banner image URL
 --------------------------------*/
 const buildBannerUrl = (req, filename) => {
-  return `${req.protocol}://${req.get('host')}/uploads/menu-items/${filename}`;
+  return buildImageUrl(req, `uploads/menu-items/${filename}`);
 };
 
 /* -------------------------------

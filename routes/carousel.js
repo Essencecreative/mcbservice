@@ -6,6 +6,7 @@ const authenticateToken = require('../middlewares/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { buildImageUrl: buildImageUrlUtil } = require('../utils/imageUrl');
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ const upload = multer({ storage });
    Helper: Build Public Image URL
 --------------------------------*/
 function buildImageUrl(req, filename) {
-  return `${req.protocol}://${req.get('host')}/uploads/carousel/${filename}`;
+  return buildImageUrlUtil(req, `uploads/carousel/${filename}`);
 }
 
 /* -------------------------------

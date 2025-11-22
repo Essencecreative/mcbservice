@@ -5,6 +5,7 @@ const authenticateToken = require('../middlewares/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { buildImageUrl: buildImageUrlUtil, extractFilePath } = require('../utils/imageUrl');
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ const upload = multer({ storage });
    Helper: Build public image URL
 --------------------------------*/
 const buildImageUrl = (req, filename) => {
-  return `${req.protocol}://${req.get('host')}/uploads/news-and-updates/${filename}`;
+  return buildImageUrlUtil(req, `uploads/news-and-updates/${filename}`);
 };
 
 /* -------------------------------
@@ -139,7 +140,8 @@ router.put('/:id', authenticateToken, upload.fields([{ name: 'image', maxCount: 
     if (req.files && req.files['image'] && req.files['image'].length > 0) {
       // Delete old image if exists
       if (news.image) {
-        const oldPath = path.join(__dirname, '..', news.image.replace(`${req.protocol}://${req.get('host')}/`, ''));
+        const relativePath = extractFilePath(news.image, req);
+        const oldPath = path.join(__dirname, '..', relativePath);
         await fs.unlink(oldPath).catch(() => {});
       }
       updateData.image = buildImageUrl(req, req.files['image'][0].filename);
@@ -148,7 +150,8 @@ router.put('/:id', authenticateToken, upload.fields([{ name: 'image', maxCount: 
     if (req.files && req.files['bannerPhoto'] && req.files['bannerPhoto'].length > 0) {
       // Delete old banner photo if exists
       if (news.bannerPhoto) {
-        const oldPath = path.join(__dirname, '..', news.bannerPhoto.replace(`${req.protocol}://${req.get('host')}/`, ''));
+        const relativePath = extractFilePath(news.bannerPhoto, req);
+        const oldPath = path.join(__dirname, '..', relativePath);
         await fs.unlink(oldPath).catch(() => {});
       }
       updateData.bannerPhoto = buildImageUrl(req, req.files['bannerPhoto'][0].filename);
@@ -175,13 +178,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     // Delete image if exists
     if (news.image) {
-      const oldPath = path.join(__dirname, '..', news.image.replace(`${req.protocol}://${req.get('host')}/`, ''));
+      const relativePath = extractFilePath(news.image, req);
+      const oldPath = path.join(__dirname, '..', relativePath);
       await fs.unlink(oldPath).catch(() => {});
     }
 
     // Delete banner photo if exists
     if (news.bannerPhoto) {
-      const oldPath = path.join(__dirname, '..', news.bannerPhoto.replace(`${req.protocol}://${req.get('host')}/`, ''));
+      const relativePath = extractFilePath(news.bannerPhoto, req);
+      const oldPath = path.join(__dirname, '..', relativePath);
       await fs.unlink(oldPath).catch(() => {});
     }
 

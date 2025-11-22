@@ -6,6 +6,7 @@ const authenticateToken = require('../middlewares/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { buildImageUrl: buildImageUrlUtil } = require('../utils/imageUrl');
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ const upload = multer({ storage });
 
 // Helper: build full URL for uploaded file
 const buildFileUrl = (req, filename) => {
-  return `${req.protocol}://${req.get("host")}/uploads/products/${path.basename(filename)}`;
+  return buildImageUrlUtil(req, `uploads/products/${path.basename(filename)}`);
 };
 
 // POST /products - Create product

@@ -3,6 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
 const Opportunity = require("../models/Opportunity");
+const { buildImageUrl: buildImageUrlUtil, extractFilePath } = require("../utils/imageUrl");
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ const upload = multer({ storage });
    Helper: build public file URL
 --------------------------------*/
 const buildFileUrl = (req, filename) => {
-  return `${req.protocol}://${req.get("host")}/uploads/opportunities/${filename}`;
+  return buildImageUrlUtil(req, `uploads/opportunities/${filename}`);
 };
 
 /* -------------------------------
@@ -108,11 +109,8 @@ router.put("/:id", upload.single("document"), async (req, res) => {
     if (req.file) {
       // Delete old file if it exists
       if (opportunity.documentUrl) {
-        const oldPath = path.join(
-          __dirname,
-          "..",
-          opportunity.documentUrl.replace(`${req.protocol}://${req.get("host")}/`, "")
-        );
+        const relativePath = extractFilePath(opportunity.documentUrl, req);
+        const oldPath = path.join(__dirname, "..", relativePath);
         await fs.unlink(oldPath).catch(() => {});
       }
 
@@ -142,11 +140,8 @@ router.delete("/:id", async (req, res) => {
 
     // Delete file if exists
     if (opportunity.documentUrl) {
-      const oldPath = path.join(
-        __dirname,
-        "..",
-        opportunity.documentUrl.replace(`${req.protocol}://${req.get("host")}/`, "")
-      );
+      const relativePath = extractFilePath(opportunity.documentUrl, req);
+      const oldPath = path.join(__dirname, "..", relativePath);
       await fs.unlink(oldPath).catch(() => {});
     }
 

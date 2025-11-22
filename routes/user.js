@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const authenticateToken = require('../middlewares/authMiddleware');
+const { buildImageUrl: buildImageUrlUtil } = require('../utils/imageUrl');
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ const upload = multer({ storage });
 
 // Helper to build full URL for uploaded file
 const buildFileUrl = (req, filename) => {
-  return `${req.protocol}://${req.get("host")}/uploads/team-members/${path.basename(filename)}`;
+  return buildImageUrlUtil(req, `uploads/team-members/${path.basename(filename)}`);
 };
 
 // Route to create a user with a specific role
