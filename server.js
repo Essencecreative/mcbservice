@@ -26,6 +26,7 @@ const faqsRoutes = require('./routes/faqs');
 const contactRoutes = require('./routes/contact');
 const applicationRoutes = require('./routes/application');
 const User = require('./models/user');
+const { startForeignExchangeCron } = require('./jobs/foreignExchangeCron');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -66,6 +67,7 @@ app.use('/uploads/carousel', express.static(uploadDirs['carousel']));
 app.use('/uploads/board-of-directors', express.static(uploadDirs['board-of-directors']));
 app.use('/uploads/management', express.static(uploadDirs['management']));
 app.use('/uploads/menu-items', express.static(uploadDirs['menu-items']));
+app.use('/uploads/menu-categories', express.static(path.join(__dirname, 'uploads', 'menu-categories')));
 
 // Optional: Serve a generic /uploads route (not recommended for production)
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -119,6 +121,9 @@ mongoose
   .then(async () => {
     console.log('✅ Connected to MongoDB successfully');
     await checkAndCreateAdminUser();
+    
+    // Start the foreign exchange cron job after MongoDB connection
+    startForeignExchangeCron();
   })
   .catch((err) => {
     console.error('❌ MongoDB connection error:', err.message);

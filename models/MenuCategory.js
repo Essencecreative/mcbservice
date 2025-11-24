@@ -35,6 +35,9 @@ const MenuCategorySchema = new mongoose.Schema({
       type: String,
       required: true, // e.g., "/Transactional-Account", "/Saving-Account"
     },
+    bannerImage: {
+      type: String, // URL or path to banner image
+    },
     isActive: {
       type: Boolean,
       default: true,
