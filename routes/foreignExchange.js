@@ -254,4 +254,5 @@ router.post('/sync', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.syncRatesFromAPI = syncRatesFromAPI;
 
