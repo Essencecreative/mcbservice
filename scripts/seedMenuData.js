@@ -30,9 +30,9 @@ async function seedMenuData() {
         position: 1,
         isActive: true,
         subcategories: [
-          { name: 'Transactional Account', displayName: 'Transactional Account', position: 1, route: '/Transactional-Account', isActive: true },
-          { name: 'Saving Account', displayName: 'Saving Account', position: 2, route: '/Saving-Account', isActive: true },
-          { name: 'Loan Account', displayName: 'Loan Account', position: 3, route: '/Loan-Account', isActive: true },
+          { name: 'Transactional Account', displayName: 'Transactional Account', position: 1, route: '/Transactional-Account', bannerImage: '/assets/images/backgrounds/Transactional-Account-Banner.png', isActive: true },
+          { name: 'Saving Account', displayName: 'Saving Account', position: 2, route: '/Saving-Account', bannerImage: '/assets/images/backgrounds/Saving-Account-Banner.png', isActive: true },
+          { name: 'Loan Account', displayName: 'Loan Account', position: 3, route: '/Loan-Account', bannerImage: '/assets/images/backgrounds/Loan-Account-Banner.png', isActive: true },
         ],
       },
       {
@@ -48,9 +48,9 @@ async function seedMenuData() {
         position: 3,
         isActive: true,
         subcategories: [
-          { name: 'Account', displayName: 'Account', position: 1, route: '/Account', isActive: true },
-          { name: 'Loans', displayName: 'Loans', position: 2, route: '/Loans', isActive: true },
-          { name: 'Ways To Bank', displayName: 'Ways To Bank', position: 3, route: '/Ways-To-Bank', isActive: true },
+          { name: 'Account', displayName: 'Account', position: 1, route: '/Account', bannerImage: '/assets/images/backgrounds/Business-Account-Banner.png', isActive: true },
+          { name: 'Loans', displayName: 'Loans', position: 2, route: '/Loans', bannerImage: '/assets/images/backgrounds/Business-Loans-Banner.png', isActive: true },
+          { name: 'Ways To Bank', displayName: 'Ways To Bank', position: 3, route: '/Ways-To-Bank', bannerImage: '/assets/images/backgrounds/Ways-To-Bank-Banner.png', isActive: true },
         ],
       },
       {
@@ -59,8 +59,8 @@ async function seedMenuData() {
         position: 4,
         isActive: true,
         subcategories: [
-          { name: 'Non-Life Insurance', displayName: 'Non-Life Insurance', position: 1, route: '/Non-Life-Insurance', isActive: true },
-          { name: 'Life Insurance', displayName: 'Life Insurance', position: 2, route: '/Life-Insurance', isActive: true },
+          { name: 'Non-Life Insurance', displayName: 'Non-Life Insurance', position: 1, route: '/Non-Life-Insurance', bannerImage: '/assets/images/backgrounds/Non-Life-Insurance-Banner.png', isActive: true },
+          { name: 'Life Insurance', displayName: 'Life Insurance', position: 2, route: '/Life-Insurance', bannerImage: '/assets/images/backgrounds/Life-Insurance-Banner.png', isActive: true },
         ],
       },
     ];

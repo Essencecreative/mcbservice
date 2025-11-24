@@ -97,6 +97,7 @@ router.get('/route/:route', async (req, res) => {
   try {
     let { route } = req.params;
     const { type } = req.query;
+    const MenuCategory = require('../models/MenuCategory');
 
     // Decode the route and ensure it starts with /
     route = decodeURIComponent(route);
@@ -118,7 +119,24 @@ router.get('/route/:route', async (req, res) => {
       .sort({ position: 1 })
       .select('-__v');
 
-    res.status(200).json({ items });
+    // Get subcategory banner image from menu category
+    let subcategoryBanner = null;
+    if (items.length > 0) {
+      const firstItem = items[0];
+      const category = await MenuCategory.findOne({ 
+        name: firstItem.menuCategory,
+        'subcategories.route': route
+      });
+      
+      if (category) {
+        const subcategory = category.subcategories.find(sub => sub.route === route);
+        if (subcategory && subcategory.bannerImage) {
+          subcategoryBanner = subcategory.bannerImage;
+        }
+      }
+    }
+
+    res.status(200).json({ items, subcategoryBanner });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to fetch menu items by route', error: error.message });
