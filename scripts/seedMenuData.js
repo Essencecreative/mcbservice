@@ -465,21 +465,29 @@ async function seedMenuData() {
       });
     });
 
-    // Invest items
-    ['Instant Income/Upfront', 'Semi Fixed/Flexible', 'Regular Interest Payment', 'Call Account', 'Traditional (US$/E/EUR)'].forEach((name, index) => {
+    // Invest items - Each item can have its own banner image
+    const investItems = [
+      { name: 'Instant Income/Upfront', bannerImage: '/assets/images/backgrounds/Invest-Banner.png' },
+      { name: 'Semi Fixed/Flexible', bannerImage: '/assets/images/backgrounds/Invest-Banner.png' },
+      { name: 'Regular Interest Payment', bannerImage: '/assets/images/backgrounds/Invest-Banner.png' },
+      { name: 'Call Account', bannerImage: '/assets/images/backgrounds/Invest-Banner.png' },
+      { name: 'Traditional (US$/E/EUR)', bannerImage: '/assets/images/backgrounds/Invest-Banner.png' },
+    ];
+    
+    investItems.forEach((item, index) => {
       menuItemsData.push({
         menuCategory: 'invest',
         subcategory: 'Invest',
         route: '/Invest',
-        name: name,
+        name: item.name,
         position: index + 1,
         isActive: true,
         pageContent: {
-          bannerImage: '/assets/images/backgrounds/Transactional-Account-Banner.png',
+          bannerImage: item.bannerImage,
           breadcrumbTitle: 'Invest',
-          breadcrumbSubTitle: name,
-          title: name,
-          description: `Investment option: ${name}.`,
+          breadcrumbSubTitle: item.name,
+          title: item.name,
+          description: `Investment option: ${item.name}.`,
           features: [
             { text: 'Feature 1' },
             { text: 'Feature 2' },

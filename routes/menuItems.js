@@ -310,7 +310,7 @@ router.put('/:id', authenticateToken, upload.single('bannerImage'), async (req, 
     const {
       menuCategory, subcategory, route, name, position, isActive,
       breadcrumbTitle, breadcrumbSubTitle, title, description,
-      features, benefits, accordionItems, additionalContent
+      features, benefits, accordionItems, additionalContent, bannerImage
     } = req.body;
 
     if (req.file) {
@@ -366,8 +366,23 @@ router.put('/:id', authenticateToken, upload.single('bannerImage'), async (req, 
     const parsedAccordionItems = typeof accordionItems === 'string' ? JSON.parse(accordionItems) : accordionItems;
 
     console.log('🔗 [MENU ITEM BANNER UPLOAD] Building banner URL...');
+    // Handle bannerImage: prioritize new file upload, then body bannerImage (URL string), then keep existing
+    let bannerImageValue = item.pageContent?.bannerImage || '';
+    if (req.file) {
+      // New file uploaded - use it
+      bannerImageValue = buildBannerUrl(req, req.file.filename);
+      console.log('✅ [MENU ITEM BANNER UPLOAD] Using new uploaded file');
+    } else if (bannerImage !== undefined && bannerImage !== '') {
+      // bannerImage provided in body as URL string (existing or new URL)
+      bannerImageValue = bannerImage;
+      console.log('✅ [MENU ITEM BANNER UPLOAD] Using bannerImage from body:', bannerImageValue);
+    } else {
+      // Keep existing banner image
+      console.log('ℹ️  [MENU ITEM BANNER UPLOAD] Keeping existing banner image');
+    }
+    
     updateData.pageContent = {
-      bannerImage: req.file ? buildBannerUrl(req, req.file.filename) : item.pageContent.bannerImage,
+      bannerImage: bannerImageValue,
       breadcrumbTitle: breadcrumbTitle !== undefined ? breadcrumbTitle : item.pageContent.breadcrumbTitle,
       breadcrumbSubTitle: breadcrumbSubTitle !== undefined ? breadcrumbSubTitle : item.pageContent.breadcrumbSubTitle,
       title: title !== undefined ? title : item.pageContent.title,
