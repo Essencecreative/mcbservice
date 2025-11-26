@@ -27,6 +27,7 @@ const contactRoutes = require('./routes/contact');
 const applicationRoutes = require('./routes/application');
 const User = require('./models/user');
 const { startForeignExchangeCron } = require('./jobs/foreignExchangeCron');
+const requestLogger = require('./middlewares/requestLogger');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -35,6 +36,9 @@ const port = process.env.PORT || 5000;
 app.use(bodyParser.json({ limit: '10mb' })); // Increase if large images
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
+
+// Request Logger - Log all incoming requests
+app.use(requestLogger);
 
 // Trust proxy - Important for getting correct protocol/host behind reverse proxy
 // This allows req.protocol and req.get('host') to work correctly with nginx/load balancers

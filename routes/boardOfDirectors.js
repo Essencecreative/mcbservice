@@ -42,12 +42,48 @@ const buildImageUrl = (req, filename) => {
    POST /board-of-directors - Create
 ---------------------------------------*/
 router.post('/', authenticateToken, upload.single('photo'), async (req, res) => {
+  const uploadStartTime = Date.now();
   try {
+    console.log('\n' + '='.repeat(80));
+    console.log('📸 [BOARD OF DIRECTORS PHOTO UPLOAD] POST /board-of-directors - Creating new board member');
+    console.log('─'.repeat(80));
+    console.log('Request received at:', new Date().toISOString());
+    console.log('User:', req.user ? { id: req.user.id || req.user.userId, username: req.user.username } : 'Not authenticated');
+
     const { position, title, fullName, linkedinLink } = req.body;
 
-    const photoUrl = req.file
-      ? buildImageUrl(req, req.file.filename)
-      : '';
+    let photoUrl = '';
+    if (req.file) {
+      console.log('📁 [BOARD OF DIRECTORS PHOTO UPLOAD] Photo file received:', {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: `${(req.file.size / 1024).toFixed(2)} KB`,
+        path: req.file.path
+      });
+
+      // Verify file exists
+      try {
+        await fs.access(req.file.path);
+        console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] File verified at path:', req.file.path);
+      } catch (accessError) {
+        console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Error: File does not exist at path:', req.file.path);
+        throw new Error(`Uploaded file not found: ${accessError.message}`);
+      }
+
+      console.log('🔗 [BOARD OF DIRECTORS PHOTO UPLOAD] Building photo URL...');
+      photoUrl = buildImageUrl(req, req.file.filename);
+      console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] Photo URL built:', photoUrl);
+    } else {
+      console.log('ℹ️  [BOARD OF DIRECTORS PHOTO UPLOAD] No photo provided');
+    }
+
+    console.log('💾 [BOARD OF DIRECTORS PHOTO UPLOAD] Creating board member with data:', {
+      position,
+      title,
+      fullName,
+      linkedinLink: linkedinLink ? 'provided' : 'not provided'
+    });
 
     const newMember = new BoardOfDirector({
       position: position ? parseInt(position) : 0,
@@ -58,6 +94,12 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
     });
 
     await newMember.save();
+    const uploadTime = Date.now() - uploadStartTime;
+
+    console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] Board member created successfully');
+    console.log('📊 [BOARD OF DIRECTORS PHOTO UPLOAD] Upload completed in:', `${uploadTime}ms`);
+    console.log('📝 [BOARD OF DIRECTORS PHOTO UPLOAD] Board Member ID:', newMember._id);
+    console.log('='.repeat(80) + '\n');
 
     res.status(201).json({
       message: 'Board member created successfully',
@@ -65,7 +107,31 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
     });
 
   } catch (error) {
-    console.error(error);
+    const uploadTime = Date.now() - uploadStartTime;
+    console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      uploadTime: `${uploadTime}ms`,
+      fileInfo: req.file ? {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        path: req.file.path
+      } : null
+    });
+    
+    // Clean up uploaded file if it exists but there was an error
+    if (req.file && req.file.path) {
+      try {
+        await fs.unlink(req.file.path);
+        console.log('🧹 [BOARD OF DIRECTORS PHOTO UPLOAD] Cleaned up file after error:', req.file.path);
+      } catch (unlinkError) {
+        console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Failed to clean up file:', unlinkError);
+      }
+    }
+    
+    console.log('='.repeat(80) + '\n');
     res.status(500).json({ message: 'Failed to create board member' });
   }
 });
@@ -129,19 +195,31 @@ router.get('/:id', async (req, res) => {
    PUT /board-of-directors/:id - Update
 ---------------------------------------*/
 router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) => {
+  const uploadStartTime = Date.now();
   try {
     const { id } = req.params;
     const { position, title, fullName, linkedinLink } = req.body;
 
+    console.log('\n' + '='.repeat(80));
+    console.log('📸 [BOARD OF DIRECTORS PHOTO UPLOAD] PUT /board-of-directors/:id - Updating board member');
+    console.log('─'.repeat(80));
+    console.log('Request received at:', new Date().toISOString());
+    console.log('Board Member ID:', id);
+    console.log('User:', req.user ? { id: req.user.id || req.user.userId, username: req.user.username } : 'Not authenticated');
+
     if (!mongoose.isValidObjectId(id)) {
+      console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Error: Invalid board member ID format');
       return res.status(400).json({ message: 'Invalid board member ID' });
     }
 
     const member = await BoardOfDirector.findById(id);
 
     if (!member) {
+      console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Error: Board member not found');
       return res.status(404).json({ message: 'Board member not found' });
     }
+
+    console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] Board member found');
 
     const updateData = {
       position: position ? parseInt(position) : member.position,
@@ -152,6 +230,14 @@ router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) =
 
     // If a new image was uploaded
     if (req.file) {
+      console.log('📁 [BOARD OF DIRECTORS PHOTO UPLOAD] New photo file received:', {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: `${(req.file.size / 1024).toFixed(2)} KB`,
+        path: req.file.path
+      });
+
       // Remove old file
       if (member.photo) {
         const oldPath = path.join(
@@ -161,17 +247,42 @@ router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) =
           'board-of-directors',
           path.basename(member.photo)
         );
-        await fs.unlink(oldPath).catch(() => {});
+        console.log('🗑️  [BOARD OF DIRECTORS PHOTO UPLOAD] Deleting old photo:', oldPath);
+        try {
+          await fs.unlink(oldPath);
+          console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] Old photo deleted successfully');
+        } catch (unlinkError) {
+          console.warn('⚠️  [BOARD OF DIRECTORS PHOTO UPLOAD] Could not delete old photo (may not exist):', unlinkError.message);
+        }
       }
 
+      // Verify new file exists
+      try {
+        await fs.access(req.file.path);
+        console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] New file verified at path:', req.file.path);
+      } catch (accessError) {
+        console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Error: New file does not exist at path:', req.file.path);
+        throw new Error(`Uploaded file not found: ${accessError.message}`);
+      }
+
+      console.log('🔗 [BOARD OF DIRECTORS PHOTO UPLOAD] Building new photo URL...');
       updateData.photo = buildImageUrl(req, req.file.filename);
+      console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] New photo URL built:', updateData.photo);
+    } else {
+      console.log('ℹ️  [BOARD OF DIRECTORS PHOTO UPLOAD] No new photo provided, keeping existing photo');
     }
 
+    console.log('💾 [BOARD OF DIRECTORS PHOTO UPLOAD] Updating board member...');
     const updatedMember = await BoardOfDirector.findByIdAndUpdate(
       id,
       updateData,
       { new: true }
     );
+
+    const uploadTime = Date.now() - uploadStartTime;
+    console.log('✅ [BOARD OF DIRECTORS PHOTO UPLOAD] Board member updated successfully');
+    console.log('📊 [BOARD OF DIRECTORS PHOTO UPLOAD] Update completed in:', `${uploadTime}ms`);
+    console.log('='.repeat(80) + '\n');
 
     res.status(200).json({
       message: 'Board member updated successfully',
@@ -179,7 +290,31 @@ router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) =
     });
 
   } catch (error) {
-    console.error(error);
+    const uploadTime = Date.now() - uploadStartTime;
+    console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      uploadTime: `${uploadTime}ms`,
+      fileInfo: req.file ? {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        path: req.file.path
+      } : null
+    });
+    
+    // Clean up uploaded file if it exists but there was an error
+    if (req.file && req.file.path) {
+      try {
+        await fs.unlink(req.file.path);
+        console.log('🧹 [BOARD OF DIRECTORS PHOTO UPLOAD] Cleaned up file after error:', req.file.path);
+      } catch (unlinkError) {
+        console.error('❌ [BOARD OF DIRECTORS PHOTO UPLOAD] Failed to clean up file:', unlinkError);
+      }
+    }
+    
+    console.log('='.repeat(80) + '\n');
     res.status(500).json({ message: 'Failed to update board member' });
   }
 });

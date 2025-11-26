@@ -1,3 +1,5 @@
+const path = require('path');
+
 /**
  * Utility function to build full image URLs
  * Uses environment variable API_BASE_URL if set, otherwise falls back to req protocol/host
@@ -36,6 +38,19 @@ const buildImageUrl = (req, uploadPath) => {
 };
 
 /**
+ * Build file URL for uploaded files in a specific folder
+ * @param {Object} req - Express request object
+ * @param {string} filename - Filename of the uploaded file
+ * @param {string} folder - Folder name like 'menu-categories', 'products', etc.
+ * @returns {string} Full URL to the file
+ */
+const buildFileUrl = (req, filename, folder) => {
+  if (!filename) return '';
+  const basename = path.basename(filename);
+  return buildImageUrl(req, `uploads/${folder}/${basename}`);
+};
+
+/**
  * Extract relative file path from a full URL
  * Handles both environment variable URLs and request-based URLs
  * @param {string} url - Full URL like 'https://service.mwalimubank.co.tz/uploads/file.jpg'
@@ -66,5 +81,5 @@ const extractFilePath = (url, req) => {
   }
 };
 
-module.exports = { buildImageUrl, getBaseUrl, extractFilePath };
+module.exports = { buildImageUrl, buildFileUrl, getBaseUrl, extractFilePath };
 

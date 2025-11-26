@@ -165,18 +165,47 @@ router.get('/:id', async (req, res) => {
    POST /menu-items - Create menu item
 --------------------------------*/
 router.post('/', authenticateToken, upload.single('bannerImage'), async (req, res) => {
+  const uploadStartTime = Date.now();
   try {
+    console.log('\n' + '='.repeat(80));
+    console.log('📸 [MENU ITEM BANNER UPLOAD] POST /menu-items - Creating new menu item');
+    console.log('─'.repeat(80));
+    console.log('Request received at:', new Date().toISOString());
+    console.log('User:', req.user ? { id: req.user.id || req.user.userId, username: req.user.username } : 'Not authenticated');
+
     const {
       menuCategory, subcategory, route, name, position, isActive,
       breadcrumbTitle, breadcrumbSubTitle, title, description,
       features, benefits, accordionItems, additionalContent
     } = req.body;
 
+    if (req.file) {
+      console.log('📁 [MENU ITEM BANNER UPLOAD] Banner image file received:', {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: `${(req.file.size / 1024).toFixed(2)} KB`,
+        path: req.file.path
+      });
+
+      // Verify file exists
+      try {
+        await fs.access(req.file.path);
+        console.log('✅ [MENU ITEM BANNER UPLOAD] File verified at path:', req.file.path);
+      } catch (accessError) {
+        console.error('❌ [MENU ITEM BANNER UPLOAD] Error: File does not exist at path:', req.file.path);
+        throw new Error(`Uploaded file not found: ${accessError.message}`);
+      }
+    } else {
+      console.log('ℹ️  [MENU ITEM BANNER UPLOAD] No banner image provided');
+    }
+
     // Parse JSON fields if sent as strings
     const parsedFeatures = typeof features === 'string' ? JSON.parse(features) : features || [];
     const parsedBenefits = typeof benefits === 'string' ? JSON.parse(benefits) : benefits || [];
     const parsedAccordionItems = typeof accordionItems === 'string' ? JSON.parse(accordionItems) : accordionItems || [];
 
+    console.log('🔗 [MENU ITEM BANNER UPLOAD] Building banner URL...');
     const pageContent = {
       bannerImage: req.file ? buildBannerUrl(req, req.file.filename) : '',
       breadcrumbTitle: breadcrumbTitle || title || name || '',
@@ -189,6 +218,18 @@ router.post('/', authenticateToken, upload.single('bannerImage'), async (req, re
       additionalContent: additionalContent || ''
     };
 
+    if (req.file) {
+      console.log('✅ [MENU ITEM BANNER UPLOAD] Banner URL built:', pageContent.bannerImage);
+    }
+
+    console.log('💾 [MENU ITEM BANNER UPLOAD] Creating menu item with data:', {
+      menuCategory,
+      subcategory,
+      route,
+      name,
+      position
+    });
+
     const newItem = new MenuItem({
       menuCategory,
       subcategory,
@@ -200,10 +241,40 @@ router.post('/', authenticateToken, upload.single('bannerImage'), async (req, re
     });
 
     await newItem.save();
+    const uploadTime = Date.now() - uploadStartTime;
+
+    console.log('✅ [MENU ITEM BANNER UPLOAD] Menu item created successfully');
+    console.log('📊 [MENU ITEM BANNER UPLOAD] Upload completed in:', `${uploadTime}ms`);
+    console.log('📝 [MENU ITEM BANNER UPLOAD] Menu Item ID:', newItem._id);
+    console.log('='.repeat(80) + '\n');
 
     res.status(201).json({ message: 'Menu item created successfully', item: newItem });
   } catch (error) {
-    console.error(error);
+    const uploadTime = Date.now() - uploadStartTime;
+    console.error('❌ [MENU ITEM BANNER UPLOAD] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      uploadTime: `${uploadTime}ms`,
+      fileInfo: req.file ? {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        path: req.file.path
+      } : null
+    });
+    
+    // Clean up uploaded file if it exists but there was an error
+    if (req.file && req.file.path) {
+      try {
+        await fs.unlink(req.file.path);
+        console.log('🧹 [MENU ITEM BANNER UPLOAD] Cleaned up file after error:', req.file.path);
+      } catch (unlinkError) {
+        console.error('❌ [MENU ITEM BANNER UPLOAD] Failed to clean up file:', unlinkError);
+      }
+    }
+    
+    console.log('='.repeat(80) + '\n');
     res.status(500).json({ message: 'Failed to create menu item', error: error.message });
   }
 });
@@ -212,18 +283,74 @@ router.post('/', authenticateToken, upload.single('bannerImage'), async (req, re
    PUT /menu-items/:id - Update menu item
 --------------------------------*/
 router.put('/:id', authenticateToken, upload.single('bannerImage'), async (req, res) => {
+  const uploadStartTime = Date.now();
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid menu item ID' });
+
+    console.log('\n' + '='.repeat(80));
+    console.log('📸 [MENU ITEM BANNER UPLOAD] PUT /menu-items/:id - Updating menu item');
+    console.log('─'.repeat(80));
+    console.log('Request received at:', new Date().toISOString());
+    console.log('Menu Item ID:', id);
+    console.log('User:', req.user ? { id: req.user.id || req.user.userId, username: req.user.username } : 'Not authenticated');
+
+    if (!mongoose.isValidObjectId(id)) {
+      console.error('❌ [MENU ITEM BANNER UPLOAD] Error: Invalid menu item ID format');
+      return res.status(400).json({ message: 'Invalid menu item ID' });
+    }
 
     const item = await MenuItem.findById(id);
-    if (!item) return res.status(404).json({ message: 'Menu item not found' });
+    if (!item) {
+      console.error('❌ [MENU ITEM BANNER UPLOAD] Error: Menu item not found');
+      return res.status(404).json({ message: 'Menu item not found' });
+    }
+
+    console.log('✅ [MENU ITEM BANNER UPLOAD] Menu item found');
 
     const {
       menuCategory, subcategory, route, name, position, isActive,
       breadcrumbTitle, breadcrumbSubTitle, title, description,
       features, benefits, accordionItems, additionalContent
     } = req.body;
+
+    if (req.file) {
+      console.log('📁 [MENU ITEM BANNER UPLOAD] New banner image file received:', {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: `${(req.file.size / 1024).toFixed(2)} KB`,
+        path: req.file.path
+      });
+
+      // Delete old banner if exists
+      if (item.pageContent && item.pageContent.bannerImage) {
+        const oldBannerPath = path.join(
+          __dirname,
+          '..',
+          'uploads',
+          'menu-items',
+          path.basename(item.pageContent.bannerImage)
+        );
+        console.log('🗑️  [MENU ITEM BANNER UPLOAD] Deleting old banner:', oldBannerPath);
+        try {
+          await fs.unlink(oldBannerPath);
+          console.log('✅ [MENU ITEM BANNER UPLOAD] Old banner deleted successfully');
+        } catch (unlinkError) {
+          console.warn('⚠️  [MENU ITEM BANNER UPLOAD] Could not delete old banner (may not exist):', unlinkError.message);
+        }
+      }
+
+      // Verify new file exists
+      try {
+        await fs.access(req.file.path);
+        console.log('✅ [MENU ITEM BANNER UPLOAD] New file verified at path:', req.file.path);
+      } catch (accessError) {
+        console.error('❌ [MENU ITEM BANNER UPLOAD] Error: New file does not exist at path:', req.file.path);
+        throw new Error(`Uploaded file not found: ${accessError.message}`);
+      }
+    } else {
+      console.log('ℹ️  [MENU ITEM BANNER UPLOAD] No new banner image provided, keeping existing banner');
+    }
 
     const updateData = {};
     if (menuCategory !== undefined) updateData.menuCategory = menuCategory;
@@ -238,6 +365,7 @@ router.put('/:id', authenticateToken, upload.single('bannerImage'), async (req, 
     const parsedBenefits = typeof benefits === 'string' ? JSON.parse(benefits) : benefits;
     const parsedAccordionItems = typeof accordionItems === 'string' ? JSON.parse(accordionItems) : accordionItems;
 
+    console.log('🔗 [MENU ITEM BANNER UPLOAD] Building banner URL...');
     updateData.pageContent = {
       bannerImage: req.file ? buildBannerUrl(req, req.file.filename) : item.pageContent.bannerImage,
       breadcrumbTitle: breadcrumbTitle !== undefined ? breadcrumbTitle : item.pageContent.breadcrumbTitle,
@@ -250,11 +378,45 @@ router.put('/:id', authenticateToken, upload.single('bannerImage'), async (req, 
       additionalContent: additionalContent !== undefined ? additionalContent : item.pageContent.additionalContent
     };
 
+    if (req.file) {
+      console.log('✅ [MENU ITEM BANNER UPLOAD] New banner URL built:', updateData.pageContent.bannerImage);
+    }
+
+    console.log('💾 [MENU ITEM BANNER UPLOAD] Updating menu item...');
     const updatedItem = await MenuItem.findByIdAndUpdate(id, { $set: updateData }, { new: true, runValidators: true }).select('-__v');
+
+    const uploadTime = Date.now() - uploadStartTime;
+    console.log('✅ [MENU ITEM BANNER UPLOAD] Menu item updated successfully');
+    console.log('📊 [MENU ITEM BANNER UPLOAD] Update completed in:', `${uploadTime}ms`);
+    console.log('='.repeat(80) + '\n');
 
     res.status(200).json({ message: 'Menu item updated successfully', item: updatedItem });
   } catch (error) {
-    console.error(error);
+    const uploadTime = Date.now() - uploadStartTime;
+    console.error('❌ [MENU ITEM BANNER UPLOAD] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      uploadTime: `${uploadTime}ms`,
+      fileInfo: req.file ? {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        path: req.file.path
+      } : null
+    });
+    
+    // Clean up uploaded file if it exists but there was an error
+    if (req.file && req.file.path) {
+      try {
+        await fs.unlink(req.file.path);
+        console.log('🧹 [MENU ITEM BANNER UPLOAD] Cleaned up file after error:', req.file.path);
+      } catch (unlinkError) {
+        console.error('❌ [MENU ITEM BANNER UPLOAD] Failed to clean up file:', unlinkError);
+      }
+    }
+    
+    console.log('='.repeat(80) + '\n');
     res.status(500).json({ message: 'Failed to update menu item', error: error.message });
   }
 });
