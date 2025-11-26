@@ -40,6 +40,7 @@ async function seedMenuData() {
         displayName: 'Invest',
         position: 2,
         isActive: true,
+        bannerImage: '/assets/images/backgrounds/Invest-Banner.png',
         subcategories: [],
       },
       {
