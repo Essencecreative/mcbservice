@@ -99,13 +99,14 @@ router.get('/:id', async (req, res) => {
 // POST /menu-categories - Create menu category (admin)
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, displayName, position, isActive, subcategories } = req.body;
+    const { name, displayName, position, isActive, subcategories, bannerImage } = req.body;
 
     const newCategory = new MenuCategory({
       name,
       displayName,
       position,
       isActive: isActive !== undefined ? isActive : true,
+      bannerImage: bannerImage || '',
       subcategories: subcategories || [],
     });
 
@@ -129,7 +130,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
   const updateStartTime = Date.now();
   try {
     const { id } = req.params;
-    const { name, displayName, position, isActive, subcategories } = req.body;
+    const { name, displayName, position, isActive, subcategories, bannerImage } = req.body;
 
     console.log('\n' + '='.repeat(80));
     console.log('📝 [MENU CATEGORY UPDATE] PUT /menu-categories/:id - Updating menu category');
@@ -172,6 +173,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
     if (isActive !== undefined) {
       updateData.isActive = isActive;
       console.log('📝 [MENU CATEGORY UPDATE] Updating isActive:', isActive);
+    }
+    if (bannerImage !== undefined) {
+      updateData.bannerImage = bannerImage;
+      console.log('📝 [MENU CATEGORY UPDATE] Updating category bannerImage:', bannerImage ? (bannerImage.substring(0, 100) + '...') : 'empty');
     }
     
     if (subcategories !== undefined) {

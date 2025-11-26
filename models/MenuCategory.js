@@ -18,6 +18,9 @@ const MenuCategorySchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  bannerImage: {
+    type: String, // URL or path to banner image for categories without subcategories
+  },
   subcategories: [{
     name: {
       type: String,

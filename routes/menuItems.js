@@ -119,19 +119,23 @@ router.get('/route/:route', async (req, res) => {
       .sort({ position: 1 })
       .select('-__v');
 
-    // Get subcategory banner image from menu category
+    // Get subcategory banner image from menu category, or category banner if no subcategories
     let subcategoryBanner = null;
     if (items.length > 0) {
       const firstItem = items[0];
       const category = await MenuCategory.findOne({ 
-        name: firstItem.menuCategory,
-        'subcategories.route': route
+        name: firstItem.menuCategory
       });
       
       if (category) {
+        // First, try to find subcategory banner
         const subcategory = category.subcategories.find(sub => sub.route === route);
         if (subcategory && subcategory.bannerImage) {
           subcategoryBanner = subcategory.bannerImage;
+        } 
+        // If no subcategory banner and category has no subcategories (like Invest), use category banner
+        else if (category.subcategories.length === 0 && category.bannerImage) {
+          subcategoryBanner = category.bannerImage;
         }
       }
     }
