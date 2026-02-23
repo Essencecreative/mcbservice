@@ -65,24 +65,42 @@ router.get('/', async (req, res) => {
 --------------------------------*/
 router.get('/all', authenticateToken, async (req, res) => {
   try {
-    const { page = 1, limit = 10, sortBy = 'position', sortOrder = 'asc' } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'position',
+      sortOrder = 'asc',
+      menuCategory,
+      subcategory,
+      route,
+      isActive
+    } = req.query;
+
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const pageSize = Math.max(Number(limit) || 10, 1);
     
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const query = {};
+    if (menuCategory) query.menuCategory = menuCategory;
+    if (subcategory) query.subcategory = subcategory;
+    if (route) query.route = route;
+    if (isActive !== undefined) query.isActive = isActive === 'true';
     
-    const items = await MenuItem.find()
+    const items = await MenuItem.find(query)
       .sort(sortOptions)
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize)
       .select('-__v');
 
-    const totalCount = await MenuItem.countDocuments();
+    const totalCount = await MenuItem.countDocuments(query);
 
     res.status(200).json({ 
       items,
       totalCount,
-      totalPages: Math.ceil(totalCount / limit),
-      currentPage: Number(page)
+      totalPages: Math.ceil(totalCount / pageSize),
+      currentPage: pageNumber
     });
   } catch (error) {
     console.error(error);
