@@ -42,7 +42,7 @@ const buildPdfUrl = (req, filename) => {
 --------------------------------*/
 router.post('/', authenticateToken, upload.single('pdf'), async (req, res) => {
   try {
-    const { category, title, description, pdfUrl } = req.body;
+    const { category, title, description, pdfUrl, type } = req.body;
 
     const finalPdfUrl = req.file
       ? buildPdfUrl(req, req.file.filename)
@@ -52,6 +52,7 @@ router.post('/', authenticateToken, upload.single('pdf'), async (req, res) => {
       category,
       title,
       description,
+      type,
       pdfUrl: finalPdfUrl
     });
 
@@ -80,6 +81,7 @@ router.get('/', async (req, res) => {
 
     const query = {};
     if (category) query.category = category;
+    if (req.query.type) query.type = req.query.type;
 
     const totalCount = await InvestorCategory.countDocuments(query);
 
@@ -126,7 +128,7 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', authenticateToken, upload.single('pdf'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { category, title, description, pdfUrl } = req.body;
+    const { category, title, description, pdfUrl, type } = req.body;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid investor category item ID' });
@@ -138,7 +140,8 @@ router.put('/:id', authenticateToken, upload.single('pdf'), async (req, res) => 
     const updateData = {
       category,
       title,
-      description
+      description,
+      type
     };
 
     if (req.file) {
