@@ -4,7 +4,7 @@ const InvestorCategorySchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
-    enum: ['agm', 'financial-reports', 'reports', 'tariff-guide', 'shareholding', 'share-price', 'contact'],
+    enum: ['agm', 'financial-reports', 'reports', 'tariff-guide', 'shareholding', 'share-price', 'contact', 'rights-issue'],
   },
   type: {
     type: String,
