@@ -9,6 +9,15 @@ const { buildImageUrl: buildImageUrlUtil, extractFilePath } = require('../utils/
 
 const router = express.Router();
 
+const imageFileFilter = (req, file, cb) => {
+  if (file.mimetype && file.mimetype.startsWith('image/')) {
+    cb(null, true);
+    return;
+  }
+
+  cb(new Error('Only image files are allowed'));
+};
+
 /* -------------------------------
    Multer Storage for image uploads
 --------------------------------*/
@@ -27,7 +36,39 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
+
+const newsImageUpload = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 20 * 1024 * 1024,
+  },
+}).fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]);
+
+const contentImageUpload = upload.single('image');
+
+const runUpload = (uploadMiddleware) => (req, res, next) => {
+  uploadMiddleware(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    const statusCode = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    const message = statusCode === 413
+      ? 'Image is too large. Please upload an image under the allowed size.'
+      : error.message || 'Image upload failed';
+
+    res.status(statusCode).json({ message });
+  });
+};
 
 /* -------------------------------
    Helper: Build public image URL
@@ -37,9 +78,33 @@ const buildImageUrl = (req, filename) => {
 };
 
 /* -------------------------------
+   POST /news-and-updates/content-image - Upload embedded editor image
+--------------------------------*/
+router.post('/content-image', authenticateToken, runUpload(contentImageUpload), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Image is required' });
+    }
+
+    const imageUrl = buildImageUrl(req, req.file.filename);
+    res.status(201).json({
+      message: 'Image uploaded successfully',
+      url: imageUrl,
+    });
+  } catch (error) {
+    if (req.file?.path) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
+
+    console.error('Content image upload error:', error);
+    res.status(500).json({ message: error.message || 'Failed to upload image' });
+  }
+});
+
+/* -------------------------------
    POST /news-and-updates - Create
 --------------------------------*/
-router.post('/', authenticateToken, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]), async (req, res) => {
+router.post('/', authenticateToken, runUpload(newsImageUpload), async (req, res) => {
   const uploadStartTime = Date.now();
   try {
     console.log('\n' + '='.repeat(80));
@@ -227,7 +292,7 @@ router.get('/:id', async (req, res) => {
 /* -------------------------------
    PUT /news-and-updates/:id - Update
 --------------------------------*/
-router.put('/:id', authenticateToken, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'bannerPhoto', maxCount: 1 }]), async (req, res) => {
+router.put('/:id', authenticateToken, runUpload(newsImageUpload), async (req, res) => {
   const uploadStartTime = Date.now();
   try {
     const { id } = req.params;
