@@ -25,6 +25,7 @@ const wakalaRoutes = require('./routes/wakala');
 const faqsRoutes = require('./routes/faqs');
 const contactRoutes = require('./routes/contact');
 const applicationRoutes = require('./routes/application');
+const youtubeVideosRoutes = require('./routes/youtubeVideos');
 const User = require('./models/user');
 const { startForeignExchangeCron } = require('./jobs/foreignExchangeCron');
 const requestLogger = require('./middlewares/requestLogger');
@@ -95,6 +96,7 @@ app.use('/wakala', wakalaRoutes);
 app.use('/faqs', faqsRoutes);
 app.use('/contact', contactRoutes);
 app.use('/application', applicationRoutes);
+app.use('/youtube-videos', youtubeVideosRoutes);
 
 // === 404 Handler for unmatched routes ===
 app.use((req, res) => {
