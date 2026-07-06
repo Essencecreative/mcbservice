@@ -8,26 +8,13 @@ const cors = require('cors');
 const path = require('path'); // <-- Add path module
 
 const userRoutes = require('./routes/user');
-const opportunityRoutes = require('./routes/opportunities');
-const statsRoutes = require('./routes/statistics');
-const productsRoutes = require('./routes/products');
-const newsAndUpdatesRoutes = require('./routes/newsAndUpdates');
-const investorNewsRoutes = require('./routes/investorNews');
-const investorCategoriesRoutes = require('./routes/investorCategories');
-const carouselRoutes = require('./routes/carousel');
-const boardOfDirectorsRoutes = require('./routes/boardOfDirectors');
-const managementRoutes = require('./routes/management');
-const headerUpdateRoutes = require('./routes/headerUpdate');
-const menuCategoriesRoutes = require('./routes/menuCategories');
-const menuItemsRoutes = require('./routes/menuItems');
-const foreignExchangeRoutes = require('./routes/foreignExchange');
-const wakalaRoutes = require('./routes/wakala');
-const faqsRoutes = require('./routes/faqs');
-const contactRoutes = require('./routes/contact');
-const applicationRoutes = require('./routes/application');
-const youtubeVideosRoutes = require('./routes/youtubeVideos');
+const clientsRoutes = require('./routes/clients');
+const projectsRoutes = require('./routes/projects');
+const categoriesRoutes = require('./routes/categories');
+const testimonialsRoutes = require('./routes/testimonials');
+const teamMembersRoutes = require('./routes/teamMembers');
+const statsRoutes = require('./routes/stats');
 const User = require('./models/user');
-const { startForeignExchangeCron } = require('./jobs/foreignExchangeCron');
 const requestLogger = require('./middlewares/requestLogger');
 
 const app = express();
@@ -78,25 +65,13 @@ app.use('/uploads/menu-categories', express.static(path.join(__dirname, 'uploads
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
-app.use('/opportunities', opportunityRoutes);
 app.use('/users', userRoutes);
-app.use('/stats', statsRoutes);
-app.use('/products', productsRoutes);
-app.use('/news-and-updates', newsAndUpdatesRoutes);
-app.use('/investor-news', investorNewsRoutes);
-app.use('/investor-categories', investorCategoriesRoutes);
-app.use('/carousel', carouselRoutes);
-app.use('/board-of-directors', boardOfDirectorsRoutes);
-app.use('/management', managementRoutes);
-app.use('/header-update', headerUpdateRoutes);
-app.use('/menu-categories', menuCategoriesRoutes);
-app.use('/menu-items', menuItemsRoutes);
-app.use('/foreign-exchange', foreignExchangeRoutes);
-app.use('/wakala', wakalaRoutes);
-app.use('/faqs', faqsRoutes);
-app.use('/contact', contactRoutes);
-app.use('/application', applicationRoutes);
-app.use('/youtube-videos', youtubeVideosRoutes);
+app.use('/api/clients', clientsRoutes);
+app.use('/api/projects', projectsRoutes);
+app.use('/api/categories', categoriesRoutes);
+app.use('/api/testimonials', testimonialsRoutes);
+app.use('/api/team', teamMembersRoutes);
+app.use('/api/stats', statsRoutes);
 
 // === 404 Handler for unmatched routes ===
 app.use((req, res) => {
@@ -118,8 +93,8 @@ if (!process.env.MONGODB_URI) {
 
 // MongoDB connection options
 const mongooseOptions = {
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  serverSelectionTimeoutMS: 2000, // Short timeout for fallback
+  socketTimeoutMS: 45000,
 };
 
 mongoose
@@ -127,24 +102,22 @@ mongoose
   .then(async () => {
     console.log('✅ Connected to MongoDB successfully');
     await checkAndCreateAdminUser();
-    
-    // Start the foreign exchange cron job after MongoDB connection
-    startForeignExchangeCron();
   })
-  .catch((err) => {
+  .catch(async (err) => {
     console.error('❌ MongoDB connection error:', err.message);
-    console.error('\n📋 Troubleshooting tips:');
-    console.error('1. Verify MONGODB_URI in your .env file is correct');
-    console.error('2. Check if your MongoDB Atlas cluster is running (not paused)');
-    console.error('3. Whitelist your IP address in MongoDB Atlas Network Access');
-    console.error('   - Go to MongoDB Atlas → Network Access → Add IP Address');
-    console.error('   - Or use 0.0.0.0/0 to allow all IPs (for development only)');
-    console.error('4. Verify connection string format:');
-    console.error('   mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority');
-    console.error('5. Check your internet connection and DNS resolution');
-    console.error('\n⚠️  Server will continue running, but database operations will fail.');
-    console.error('   Fix the MongoDB connection to enable full functionality.\n');
-    // Don't exit - allow server to run for testing API routes without DB
+    console.log('⚠️ Falling back to In-Memory MongoDB for testing...');
+    
+    try {
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      const mongoServer = await MongoMemoryServer.create();
+      const mongoUri = mongoServer.getUri();
+      
+      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
+      console.log('✅ Connected to In-Memory MongoDB successfully');
+      await checkAndCreateAdminUser();
+    } catch (memErr) {
+      console.error('❌ Failed to start In-Memory MongoDB:', memErr.message);
+    }
   });
 
 // Function to ensure admin user exists
