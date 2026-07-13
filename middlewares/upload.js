@@ -5,9 +5,9 @@ const path = require('path');
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  // accept image files only
-  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) {
-    return cb(new Error('Only image files are allowed!'), false);
+  // accept image files only (case-insensitive extension check or mimetype)
+  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|svg|webp|heic)$/i) && !file.mimetype.startsWith('image/')) {
+    return cb(new Error(`Only image files are allowed! Received: ${file.originalname}`), false);
   }
   cb(null, true);
 };
@@ -15,7 +15,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
 });
 
 module.exports = upload;
