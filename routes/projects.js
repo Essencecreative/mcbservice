@@ -84,7 +84,8 @@ router.put('/:id', authMiddleware, cpUpload, async (req, res) => {
     const { 
       title, description, category, client,
       clientName, services, industry, projectBrief, 
-      solutionBrief, projectLink, quoteDescription, quoteTitle 
+      solutionBrief, projectLink, quoteDescription, quoteTitle,
+      removeBannerPhoto, removeMiniPhoto, removeQuotePhoto, existingGallery
     } = req.body;
 
     const project = await Project.findById(req.params.id);
@@ -102,6 +103,25 @@ router.put('/:id', authMiddleware, cpUpload, async (req, res) => {
     if (projectLink !== undefined) project.projectLink = projectLink;
     if (quoteDescription !== undefined) project.quoteDescription = quoteDescription;
     if (quoteTitle !== undefined) project.quoteTitle = quoteTitle;
+
+    if (removeBannerPhoto === 'true') project.bannerPhoto = '';
+    if (removeMiniPhoto === 'true') project.miniPhoto = '';
+    if (removeQuotePhoto === 'true') project.quotePhoto = '';
+
+    if (existingGallery !== undefined) {
+      try {
+        project.gallery = JSON.parse(existingGallery);
+      } catch (e) {
+        // If it's not valid JSON, it might be an array or string
+        if (Array.isArray(existingGallery)) {
+          project.gallery = existingGallery;
+        } else if (typeof existingGallery === 'string' && existingGallery !== '') {
+          project.gallery = [existingGallery];
+        } else {
+          project.gallery = [];
+        }
+      }
+    }
 
     const uploadToCloudinary = async (file) => {
       const dataURI = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;

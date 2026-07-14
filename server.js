@@ -65,7 +65,7 @@ app.use('/uploads/menu-categories', express.static(path.join(__dirname, 'uploads
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
-app.use('/users', userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/categories', categoriesRoutes);
