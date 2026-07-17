@@ -14,6 +14,7 @@ const categoriesRoutes = require('./routes/categories');
 const testimonialsRoutes = require('./routes/testimonials');
 const teamMembersRoutes = require('./routes/teamMembers');
 const statsRoutes = require('./routes/stats');
+const bannerRoutes = require('./routes/banners');
 const User = require('./models/user');
 const requestLogger = require('./middlewares/requestLogger');
 
@@ -42,6 +43,7 @@ const uploadDirs = {
   'board-of-directors': path.join(__dirname, 'uploads', 'board-of-directors'),
   'management': path.join(__dirname, 'uploads', 'management'),
   'menu-items': path.join(__dirname, 'uploads', 'menu-items'),
+  'banners': path.join(__dirname, 'uploads', 'banners'),
   // Add more folders as needed
 };
 
@@ -59,6 +61,7 @@ app.use('/uploads/carousel', express.static(uploadDirs['carousel']));
 app.use('/uploads/board-of-directors', express.static(uploadDirs['board-of-directors']));
 app.use('/uploads/management', express.static(uploadDirs['management']));
 app.use('/uploads/menu-items', express.static(uploadDirs['menu-items']));
+app.use('/uploads/banners', express.static(uploadDirs['banners']));
 app.use('/uploads/menu-categories', express.static(path.join(__dirname, 'uploads', 'menu-categories')));
 
 // Optional: Serve a generic /uploads route (not recommended for production)
@@ -72,6 +75,7 @@ app.use('/api/categories', categoriesRoutes);
 app.use('/api/testimonials', testimonialsRoutes);
 app.use('/api/team', teamMembersRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/banners', bannerRoutes);
 
 // === 404 Handler for unmatched routes ===
 app.use((req, res) => {
