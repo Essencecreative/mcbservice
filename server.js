@@ -78,6 +78,7 @@ app.use('/api/team', teamMembersRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api/brand-section', brandSectionRoutes);
+app.use('/api/solutions', require('./routes/solutions'));
 
 // === 404 Handler for unmatched routes ===
 app.use((req, res) => {
