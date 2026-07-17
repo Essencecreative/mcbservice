@@ -15,6 +15,7 @@ const testimonialsRoutes = require('./routes/testimonials');
 const teamMembersRoutes = require('./routes/teamMembers');
 const statsRoutes = require('./routes/stats');
 const bannerRoutes = require('./routes/banners');
+const brandSectionRoutes = require('./routes/brandSection');
 const User = require('./models/user');
 const requestLogger = require('./middlewares/requestLogger');
 
@@ -76,6 +77,7 @@ app.use('/api/testimonials', testimonialsRoutes);
 app.use('/api/team', teamMembersRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/banners', bannerRoutes);
+app.use('/api/brand-section', brandSectionRoutes);
 
 // === 404 Handler for unmatched routes ===
 app.use((req, res) => {
